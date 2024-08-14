@@ -1,0 +1,35 @@
+#pragma once
+
+#include <SFML/Graphics.hpp>
+
+typedef sf::Vector2f Vector2f;
+
+class Drawable : public sf::CircleShape {
+public:
+	Drawable(float radius = 5.0f, int numPoints = 20, sf::Vector2f pos = sf::Vector2f(0, 0)) :
+		sf::CircleShape(radius) {
+		sf::CircleShape::setPosition(pos);
+		sf::CircleShape::setOrigin(radius, radius);
+		sf::CircleShape::setFillColor(sf::Color::Black);
+		sf::CircleShape::setPointCount(numPoints);
+	}
+
+	void goTo(Drawable* other) {
+		sf::CircleShape::setPosition(other->getPosition());
+	}
+
+	Vector2f lerp(float t, Drawable* other) {
+		if (t > 1) t = 1.0f;
+		return getPosition() * (1.0f - t) + (other->getPosition() * t);
+	}
+
+	float dist(Drawable* other) {
+		Vector2f delta = other->getPosition() - getPosition();
+		return sqrt(delta.x * delta.x + delta.y * delta.y);
+	}
+
+	void updateRadius(float radius) {
+		setRadius(radius);
+		setOrigin(radius, radius);
+	}
+};
