@@ -57,7 +57,9 @@ public:
 		// TODO actually handle these errors instead of just despawning/ignoring them
 		if (timer > CITIZEN_DESPAWN_THRESH) {
 			if (status == STATUS_AT_STOP) {
-				getCurrentNode()->capacity--;
+				if (getCurrentNode()->capacity > 0) {
+					getCurrentNode()->capacity--;
+				}
 			}
 			status = STATUS_DESPAWNED_ERR;
 			return true;
@@ -108,7 +110,9 @@ public:
 					status = STATUS_IN_TRANSIT;
 					currentTrain = t;
 					currentTrain->capacity++;
-					getCurrentNode()->capacity--;
+					if (getCurrentNode()->capacity > 0) {
+						getCurrentNode()->capacity--;
+					}
 					index++;
 					justBoarded = true;
 				}
