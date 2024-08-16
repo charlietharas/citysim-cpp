@@ -66,7 +66,7 @@
 
 // Node
 #define NODE_ID_SIZE				36
-#define N_NEIGHBORS					16
+#define N_NEIGHBORS					24
 #define N_TRAINS					8
 #define TRANSFER_WEIGHT				16
 #define TRANSFER_MAX_DIST			2

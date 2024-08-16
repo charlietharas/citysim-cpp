@@ -102,6 +102,7 @@ void generateCitizens(int spawnAmount) {
 	}
 }
 
+// TODO look at the weekender for more realistic train counts + speeds
 int init() {
 	// allocate and initialize global arrays
 	for (int i = 0; i < MAX_LINES; i++) {
@@ -383,6 +384,8 @@ void renderingThread() {
 
 	simSpeedStat.push_back(0);
 
+	// TODO draw complex lines
+
 	while (window.isOpen() && !shouldExit) {
 		renderTick++;
 
@@ -532,6 +535,7 @@ void renderingThread() {
 	}
 }
 
+// TODO nodes outside stations
 void pathfindingThread() {
 	std::unique_lock<std::mutex> lock(pathsMutex);
 	while (!shouldExit) {
@@ -548,7 +552,7 @@ void pathfindingThread() {
 	}
 }
 
-// TODO fix performance falloff (may actually be caused by pathfinding??) simulation hangs increasingly at regular interval
+// TODO fix performance falloff
 // TODO investigate possible memory leaks
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
