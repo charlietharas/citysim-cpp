@@ -28,10 +28,11 @@ const int TARGET_FPS = 60;
 const std::chrono::microseconds FRAME_DURATION(1000000 / TARGET_FPS);
 
 long long unsigned int simTick;
-long long unsigned int renderTick;
+long unsigned int renderTick;
 
-long long unsigned int handledCitizens;
-long long unsigned int handledPathNodes;
+unsigned int totalRidership;
+unsigned int handledCitizens;
+unsigned int handledPathNodes;
 
 std::vector<size_t> activeCitizensStat;
 std::vector<double> clockStat;
@@ -82,10 +83,23 @@ void generateCitizens(int spawnAmount) {
 	std::vector<Citizen*> spawnedCitizens;
 	// int i = lastCitizenSpawnedIndex;
 	while (spawnedCount < spawnAmount) {
-		int startNode = rand() % VALID_NODES;
+		int startRidership = rand() % totalRidership;
+		int endRidership;
+		int startNode;
 		int endNode;
 		do {
-			endNode = rand() % VALID_NODES;
+			startNode = 0;
+			endNode = 0;
+			endRidership = rand() % totalRidership;
+			int i = 0;
+			// TODO optimize ridership calculation
+			while (i < startRidership) {
+				i += nodes[startNode++].ridership;
+			}
+			i = 0;
+			while (i < endRidership) {
+				i += nodes[endNode++].ridership;
+			}
 		} while (endNode == startNode);
 
 		// add citizen
@@ -175,6 +189,7 @@ int init() {
 	std::cout << "Successfully opened stations_data.csv" << std::endl;
 
 	row = 0;
+	totalRidership = 0;
 	while (std::getline(stationsCSV, line)) {
 		std::stringstream lineStream(line);
 		std::string cell;
@@ -199,6 +214,7 @@ int init() {
 				break;
 			case 5: // ridership (daily, 2019)
 				nodes[row].ridership = std::stoi(cell);
+				totalRidership += nodes[row].ridership;
 				break;
 			default:
 				break;
@@ -209,7 +225,7 @@ int init() {
 		row++;
 	}
 	VALID_NODES = row;
-	std::cout << "Parsed stations data" << std::endl;
+	std::cout << "Parsed stations data (total system ridership: " << totalRidership << ")" << std::endl;
 
 	// normalize Node position data to screen boundaries
 	float minNodeX = nodesX[0]; float maxNodeX = nodesX[0];
@@ -524,6 +540,23 @@ void renderingThread() {
 						SIM_SPEED = tempSimSpeed;
 					}
 				}
+				// press space to spawn CUSTOM_CITIZEN_SPAWN citizens at the nearest node
+				// TODO offload this to the pathfinding thread (should also prevent race conditions)
+				if (event.key.code == sf::Keyboard::Space) {
+					std::vector<Citizen*> spawnedCitizens;
+					spawnedCitizens.reserve(CUSTOM_CITIZEN_SPAWN);
+					for (int i = 0; i < CUSTOM_CITIZEN_SPAWN; i++) {
+						Citizen* c = addCitizen(closestNode, &nodes[rand() % VALID_NODES]);
+						if (c != nullptr) {
+							spawnedCitizens.push_back(c);
+						}
+					}
+
+					std::lock_guard<std::mutex> lock(citizensMutex);
+					for (Citizen* c : spawnedCitizens) {
+						activeCitizens.insert(c);
+					}
+				}
 			}
 		}
 
@@ -613,17 +646,15 @@ void pathfindingThread() {
 		doPathfinding.wait(lock, [] {return !justDidPathfinding || shouldExit; });
 		if (shouldExit) break;
 		justDidPathfinding = true;
-		size_t spawnAmount = TARGET_CITIZEN_COUNT - activeCitizens.size();
+		int spawnAmount = TARGET_CITIZEN_COUNT - (int) activeCitizens.size();
+		spawnAmount = CITIZEN_SPAWN_MAX;
 		if (CITIZEN_RANDOMIZE_SPAWN_AMT) {
-			generateCitizens(rand() % spawnAmount);
+			spawnAmount = rand() % spawnAmount;
 		}
-		else {
-			generateCitizens(spawnAmount);
-		}
+		generateCitizens(spawnAmount);
 	}
 }
 
-// TODO investigate performance falloff (~30% drop after a couple seconds, why?)
 // TODO investigate possible memory leaks
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;

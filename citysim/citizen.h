@@ -69,6 +69,7 @@ public:
 				status = STATUS_WALK;
 			} else {
 				status = STATUS_TRANSFER;
+				getCurrentNode()->capacity++;
 			}
 		case STATUS_WALK:
 			// this is kind of janky
