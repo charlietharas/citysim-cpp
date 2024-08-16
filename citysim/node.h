@@ -9,7 +9,6 @@
 #include "drawable.h"
 #include "macros.h"
 #include "line.h"
-#include "pathCache.h"
 
 class Train;
 
@@ -17,6 +16,92 @@ struct PathWrapper {
     Node* node;
     Line* line;
 };
+
+// std::pair is for losers
+class NodePairWrapper {
+    Node* first;
+    Node* second;
+public:
+    NodePairWrapper(Node* f, Node* s) {
+        first = f;
+        second = s;
+    }
+    bool operator== (const NodePairWrapper& other) const {
+        return first == other.first && second == other.second;
+    }
+    bool operator!= (const NodePairWrapper& other) const {
+        return first != other.first || second != other.second;
+    }
+    struct HashFunction {
+        std::size_t operator()(const NodePairWrapper& wrapper) const {
+            return std::hash<Node*>()(wrapper.first) & std::hash<Node*>()(wrapper.second);
+        }
+    };
+};
+
+struct PathCacheWrapper {
+    std::vector<PathWrapper> path;
+public:
+    PathCacheWrapper(PathWrapper* p, size_t s) {
+        path.clear();
+        for (int i = 0; i < s; i++) {
+            path.push_back(p[i]);
+        }
+    }
+    size_t pathSize() {
+        return path.size();
+    }
+};
+
+template<typename KeyType, typename ValueType>
+class PathCache {
+public:
+    PathCache(size_t c) {
+        capacity = c;
+    }
+
+    void put(const KeyType& key, const ValueType& value) {
+        // check if key already exists
+        auto it = cacheMap.find(key);
+        if (it != cacheMap.end()) {
+            // move to front (if exists)
+            cacheList.erase(it->second);
+            cacheMap.erase(it);
+        }
+
+        // move to front (if new)
+        cacheList.push_front(std::make_pair(key, value));
+        cacheMap[key] = cacheList.begin();
+
+        if (cacheList.size() > capacity) {
+            // remove LRU if cache above capacity
+            auto last = cacheList.end();
+            last--;
+            cacheMap.erase(last->first);
+            cacheList.pop_back();
+        }
+    }
+
+    ValueType get(const KeyType& key) {
+        auto it = cacheMap.find(key);
+        if (it == cacheMap.end()) {
+            return PathCacheWrapper(nullptr, 0);
+        }
+
+        // move to front (if accessed, exists)
+        cacheList.splice(cacheList.begin(), cacheList, it->second);
+        return it->second->second;
+    }
+
+    bool exists(const KeyType& key) const {
+        return cacheMap.find(key) != cacheMap.end();
+    }
+
+    size_t capacity;
+    std::list<std::pair<KeyType, ValueType>> cacheList;
+    std::unordered_map<KeyType, typename std::list<std::pair<KeyType, ValueType>>::iterator, typename KeyType::HashFunction> cacheMap;
+};
+
 
 PathCache<NodePairWrapper, PathCacheWrapper> cache(PATH_CACHE_SIZE);
 
@@ -95,35 +180,36 @@ public:
     }
 
     PathCacheWrapper getCachedPath(Node* end) {
-        // Retrieve from cache in both directions
+        // look up path in bidirectional cache
         PathCacheWrapper pcw = cache.get(NodePairWrapper(this, end));
-        if (pcw.pathSize > 0) {
+        if (pcw.pathSize() > 0) {
             return pcw;
         }
 
-        // Reverse cache lookup
         pcw = cache.get(NodePairWrapper(end, this));
-        if (pcw.pathSize > 0) {
-            // Reverse the path for proper order
-            for (size_t i = 0; i < pcw.pathSize; i++) {
-                pcw.path[i] = pcw.path[pcw.pathSize - i - 1];
+        if (pcw.pathSize() > 0) {
+            for (int i = 0; i < pcw.pathSize() / 2; i++) {
+                PathWrapper temp = pcw.path[i];
+                pcw.path[i] = pcw.path[pcw.pathSize() - i - 1];
+                pcw.path[pcw.pathSize() - i - 1] = temp;
             }
             return pcw;
         }
 
-        return PathCacheWrapper(nullptr, 0); // No path found
+        return PathCacheWrapper(nullptr, 0);
     }
 
     bool findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
-        // Check cache first
         PathCacheWrapper cachedPath = getCachedPath(end);
-        if (cachedPath.pathSize > 0) {
-            std::copy(cachedPath.path, cachedPath.path + cachedPath.pathSize, destPath);
-            *destPathSize = cachedPath.pathSize;
+        if (cachedPath.pathSize() > 0) {
+            std::copy(cachedPath.path.begin(), cachedPath.path.end(), destPath);
+            *destPathSize = cachedPath.pathSize();
+            if (cachedPath.pathSize() < CITIZEN_PATH_SIZE) {
+                destPath[cachedPath.pathSize()] = PathWrapper();
+            }
             return true;
         }
 
-        // Use A* algorithm to find the path
         auto compare = [](Node* a, Node* b) { return a->score > b->score; };
         std::priority_queue<Node*, std::vector<Node*>, decltype(compare)> queue(compare);
         std::unordered_set<Node*> queueSet;
@@ -141,7 +227,6 @@ public:
             queue.pop();
             queueSet.erase(current);
 
-            // Path found
             if (current == end) {
                 std::vector<PathWrapper> path = reconstructPath(from, end);
                 if (!path.empty()) {
@@ -153,11 +238,13 @@ public:
                     return false;
                 }
 
-                // Copy path
                 std::copy(path.begin(), path.end(), destPath);
                 *destPathSize = pathSize;
+                if (pathSize < CITIZEN_PATH_SIZE) {
+                    destPath[pathSize] = PathWrapper();
+                }
 
-                // Cache the path
+                // TODO cache subpaths? would that even make sense?
                 cache.put(NodePairWrapper(this, end), PathCacheWrapper(destPath, pathSize));
 
                 return true;
@@ -174,7 +261,7 @@ public:
 
                 double aggregateScore = score[current] + current->weights[i];
 
-                // Anti-transfer heuristic
+                // anti-transfer heuristic
                 if (from.find(neighbor) != from.end() && from[neighbor]->line != line) {
                     aggregateScore += TRANSFER_PENALTY;
                 }
@@ -192,6 +279,6 @@ public:
             }
         }
 
-        return false; // No path found
+        return false; // no path found
     }
 };

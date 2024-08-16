@@ -17,7 +17,6 @@
 #include "node.h"
 #include "citizen.h"
 #include "util.h"
-#include "pathCache.h"
 
 int VALID_LINES;
 int VALID_NODES;
@@ -59,13 +58,13 @@ std::atomic<bool> shouldExit(false);
 
 std::condition_variable doPathfinding;
 
-bool addCitizen(Node* startNode, Node* endNode) {
-	if (inactiveCitizens.size() == 0) {
-		return false;
+Citizen* addCitizen(Node* startNode, Node* endNode) {
+	if (inactiveCitizens.empty()) {
+		return nullptr;
 	}
 	Citizen* ptr = inactiveCitizens.top();
 	if (!startNode->findPath(endNode, ptr->path, &ptr->pathSize)) {
-		return false;
+		return nullptr;
 	}
 	inactiveCitizens.pop();
 	ptr->status = STATUS_SPAWNED;
@@ -74,13 +73,13 @@ bool addCitizen(Node* startNode, Node* endNode) {
 	ptr->timer = 0;
 	handledCitizens++;
 	handledPathNodes += ptr->pathSize;
-	activeCitizens.insert(ptr);
-	return true;
+	return ptr;
 }
 
 void generateCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
+	std::vector<Citizen*> spawnedCitizens;
 	// int i = lastCitizenSpawnedIndex;
 	while (spawnedCount < spawnAmount) {
 		int startNode = rand() % VALID_NODES;
@@ -90,12 +89,16 @@ void generateCitizens(int spawnAmount) {
 		} while (endNode == startNode);
 
 		// add citizen
-		if (addCitizen(&nodes[startNode], &nodes[endNode])) {
+		Citizen* c = addCitizen(&nodes[startNode], &nodes[endNode]);
+		if (c != nullptr) {
 			spawnedCount++;
+			spawnedCitizens.push_back(c);
 		}
-		else {
-			// std::cout << "Citizen failed to generate [" << nodes[startNode].id << " : " << nodes[endNode].id << "] " << std::endl;
-		}
+	}
+
+	std::lock_guard<std::mutex> lock(citizensMutex);
+	for (Citizen* c : spawnedCitizens) {
+		activeCitizens.insert(c);
 	}
 }
 
@@ -535,12 +538,18 @@ void pathfindingThread() {
 		doPathfinding.wait(lock, [] {return !justDidPathfinding || shouldExit; });
 		if (shouldExit) break;
 		justDidPathfinding = true;
-		std::lock_guard<std::mutex> lock(citizensMutex);
-		int spawnAmount = (CITIZEN_RANDOMIZE_SPAWN_AMT) ? rand() % (CITIZEN_SPAWN_MAX) : CITIZEN_SPAWN_MAX;
-		generateCitizens(spawnAmount);
+		int spawnAmount = TARGET_CITIZEN_COUNT - activeCitizens.size();
+		if (CITIZEN_RANDOMIZE_SPAWN_AMT) {
+			generateCitizens(rand() % spawnAmount);
+		}
+		else {
+			generateCitizens(spawnAmount);
+		}
 	}
 }
 
+// TODO fix performance falloff (may actually be caused by pathfinding??) simulation hangs increasingly at regular interval
+// TODO investigate possible memory leaks
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
 	double timeElapsed = double(clock());
@@ -597,7 +606,7 @@ void simulationThread() {
 			auto citizenIt = activeCitizens.begin();
 			
 			std::vector<Citizen*> citizensToDelete;
-			for (int i = 0; i < 4 && citizenIt != activeCitizens.end(); ++i) {
+			for (int i = 0; i < NUM_THREADS && citizenIt != activeCitizens.end(); ++i) {
 				auto nextIt = citizenIt;
 				std::advance(nextIt, std::min(chunkSize, (size_t) std::distance(citizenIt, activeCitizens.end())));
 
@@ -610,7 +619,10 @@ void simulationThread() {
 						}
 					}
 					std::lock_guard<std::mutex> lock(citizenDeletionMutex);
-					citizensToDelete.insert(citizensToDelete.end(), threadCitizensToDelete.begin(), threadCitizensToDelete.end());
+					for (Citizen* c : threadCitizensToDelete) {
+						citizensToDelete.emplace_back(c);
+						inactiveCitizens.push(c);
+					}
 					}));
 
 				citizenIt = nextIt;

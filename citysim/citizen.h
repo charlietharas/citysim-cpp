@@ -3,7 +3,6 @@
 #include <SFML/Graphics.hpp>
 #include "drawable.h"
 #include "macros.h"
-#include "pathCache.h"
 class Node;
 
 class Citizen : public Drawable {
@@ -39,7 +38,6 @@ public:
 	}
 
 	// returns true if the citizen has been despawned/is despawned
-	// TODO fix capacity updates for currentNode/currentTrain (& improve rendering)
 	bool updatePositionAlongPath(float speed) {
 		timer += speed;
 		float dist;
@@ -57,9 +55,7 @@ public:
 		// TODO actually handle these errors instead of just despawning/ignoring them
 		if (timer > CITIZEN_DESPAWN_THRESH) {
 			if (status == STATUS_AT_STOP) {
-				if (getCurrentNode()->capacity > 0) {
-					getCurrentNode()->capacity--;
-				}
+				getCurrentNode()->capacity = std::min(getCurrentNode()->capacity-1, unsigned int(0));
 			}
 			status = STATUS_DESPAWNED_ERR;
 			return true;
@@ -110,9 +106,7 @@ public:
 					status = STATUS_IN_TRANSIT;
 					currentTrain = t;
 					currentTrain->capacity++;
-					if (getCurrentNode()->capacity > 0) {
-						getCurrentNode()->capacity--;
-					}
+					getCurrentNode()->capacity = std::min(getCurrentNode()->capacity-1, unsigned int(0));
 					index++;
 					justBoarded = true;
 				}
@@ -130,7 +124,7 @@ public:
 				}
 
 				if (getCurrentLine() != currentTrain->line) {
-					if (currentTrain != nullptr) currentTrain->capacity--;
+					currentTrain->capacity = std::min(currentTrain->capacity, unsigned int(0));
 
 					if (getCurrentLine() == &WALKING_LINE) {
 						status = STATUS_WALK;
