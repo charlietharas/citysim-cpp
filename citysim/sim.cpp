@@ -178,7 +178,7 @@ int init() {
 	while (std::getline(stationsCSV, line)) {
 		std::stringstream lineStream(line);
 		std::string cell;
-		nodes[row].status = STATUS_SPAWNED;
+		nodes[row].status = STATUS_EXISTS;
 
 		int col = 0;
 		while (std::getline(lineStream, cell, ',')) {
@@ -259,7 +259,7 @@ int init() {
 		Line* line = &lines[i];
 
 		// update Node colors for each Line
-		while (line->path[j] != NULL && line->path[j]->status) {
+		while (line->path[j] != NULL && line->path[j]->status == STATUS_EXISTS) {
 			if (j > 0) {
 				line->dist[j - 1] = line->path[j]->dist(line->path[j - 1]) * 128;
 				struct PathWrapper neighborWrapper1 = { line->path[j], line };
@@ -356,7 +356,7 @@ void renderingThread() {
 	lineVertices.reserve(VALID_NODES);
 	for (int i = 0; i < VALID_LINES; i++) {
 		int j = 0;
-		while (lines[i].path[j] != nullptr && lines[i].path[j]->status) {
+		while (lines[i].path[j] != nullptr && lines[i].path[j]->status == STATUS_EXISTS) {
 			sf::Vector2f position = lines[i].path[j]->getPosition();
 			sf::Color color = lines[i].path[j]->getFillColor();
 
@@ -386,11 +386,34 @@ void renderingThread() {
 
 	// TODO draw complex lines
 
+	// user path stuff
+	Node* node1 = nullptr;
+	Node* node2 = nullptr;
+	char nodeCount = 0;
+	PathWrapper userPath[CITIZEN_PATH_SIZE];
+	sf::Color userPathColors[CITIZEN_PATH_SIZE];
+	char userPathSize;
+	sf::VertexBuffer userPathVertexBuffer(sf::LinesStrip, sf::VertexBuffer::Usage::Static);
+
 	while (window.isOpen() && !shouldExit) {
 		renderTick++;
 
 		// fps limiter
 		sf::Time frameStart = clock.getElapsedTime();
+
+		// get nearest node
+		// TODO optimize with segmented grid
+		float minDist = WINDOW_X * WINDOW_Y;
+		Node* closestNode = nullptr;
+		for (int i = 0; i < VALID_NODES; i++) {
+			// TODO transform by zoom
+			Vector2f pos = Vector2f(sf::Mouse::getPosition() - window.getPosition()) - Vector2f(0, 40);
+			float dist = nodes[i].dist(pos.x, pos.y);
+			if (dist < minDist) {
+				minDist = dist;
+				closestNode = &nodes[i];
+			}
+		}
 
 		// handle window events (including pan/zoom)
 		sf::Event event;
@@ -419,6 +442,50 @@ void renderingThread() {
 			else if (event.type == sf::Event::MouseMoved && sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
 				view.setCenter(Vector2f(sf::Mouse::getPosition(window)) - panOffset);
 			}
+			// draw custom paths by right clicking to select nearest node
+			else if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Right) {
+				std::vector<sf::Vertex> userPathVertices;
+				switch (nodeCount) {
+				case 0:
+					node1 = closestNode;
+					std::cout << "User selected start " << node1->id << std::endl;
+					userPathColors[0] = node1->getFillColor();
+					node1->setFillColor(sf::Color::Cyan);
+					nodeCount++;
+					break;
+				case 1:
+					node2 = closestNode;
+					if (node2->findPath(node1, userPath, &userPathSize)) {
+						userPathColors[userPathSize - 1] = node2->getFillColor();
+						node2->setFillColor(sf::Color::Cyan);
+						std::cout << "User selected end " << node2->id << std::endl;
+						for (char i = 0; i < userPathSize; i++) {
+							// TODO this is sloppy, rewrite later
+							if (i > 0 && i < userPathSize-1) {
+								userPathColors[i] = userPath[i].node->getFillColor();
+								userPath[i].node->setFillColor(sf::Color::Cyan);
+							}
+							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), sf::Color::Cyan));
+						}
+						userPathVertexBuffer.create(userPathSize);
+						userPathVertexBuffer.update(userPathVertices.data());
+						nodeCount++;
+					}
+					break;
+				case 2:
+					std::cout << "User cleared selection" << std::endl;
+					node1->setFillColor(userPathColors[0]);
+					node2->setFillColor(userPathColors[userPathSize - 1]);
+					for (char i = 1; i < userPathSize-1; i++) {
+						userPath[i].node->setFillColor(userPathColors[i]);
+					}
+					userPathSize = 0;
+					userPathVertices.clear();
+					userPathVertexBuffer.update(userPathVertices.data());
+					nodeCount = 0;
+					break;
+				}
+			}
 			// TODO pan with arrow keys
 			else if (event.type == sf::Event::KeyPressed) {
 				// press 1 to toggle nodes visibility
@@ -445,9 +512,9 @@ void renderingThread() {
 				if (event.key.code == sf::Keyboard::Add && !paused) {
 					SIM_SPEED = std::min(std::max(SIM_SPEED + SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
 				}
-				// press p or SPACE to toggle simulation pause
+				// press p to toggle simulation pause
 				// TODO pause thread instead of shutting sim speed
-				if (event.key.code == sf::Keyboard::P || event.key.code == sf::Keyboard::Space) {
+				if (event.key.code == sf::Keyboard::P) {
 					paused = !paused;
 					if (paused) {
 						tempSimSpeed = SIM_SPEED;
@@ -468,7 +535,7 @@ void renderingThread() {
 		if (renderTick % TEXT_REFRESH_RATE == 0) {
 			size_t c = activeCitizens.size();
 			double s = simSpeedStat[simSpeedStat.size() - 1];
-			text.setString(std::to_string(c) + " active citizens\n" + std::to_string(s) + " ticks/sec\n" + std::to_string(s / c) + " ticks/sec/citizen");
+			text.setString(std::to_string(c) + " active citizens\n" + std::to_string(s) + " ticks/sec\n" + std::to_string(s / c) + " ticks/sec/citizen\n" + closestNode->id);
 		}
 		window.draw(text);
 
@@ -490,7 +557,6 @@ void renderingThread() {
 			}
 
 			window.draw(trainVertices);
-
 		}
 
 		if (drawNodes) {
@@ -509,11 +575,15 @@ void renderingThread() {
 			}
 
 			window.draw(nodeVertices);
-
 		}
 
 		if (drawLines) {
-			window.draw(linesVertexBuffer);
+			if (nodeCount == 2) {
+				window.draw(userPathVertexBuffer);
+			}
+			else {
+				window.draw(linesVertexBuffer);
+			}
 		}
 
 		// TODO optimize citizen rendering
@@ -527,6 +597,7 @@ void renderingThread() {
 		window.display();
 
 		// frame rate control
+		// TODO just enable vsync?
 		sf::Time frameTime = clock.getElapsedTime() - frameStart;
 		sf::Int64 sleepTime = FRAME_DURATION.count() - frameTime.asMicroseconds();
 		if (sleepTime > 0) {
@@ -535,14 +606,14 @@ void renderingThread() {
 	}
 }
 
-// TODO nodes outside stations
+// TODO custom (non-station) nodes for "full" pathfinding
 void pathfindingThread() {
 	std::unique_lock<std::mutex> lock(pathsMutex);
 	while (!shouldExit) {
 		doPathfinding.wait(lock, [] {return !justDidPathfinding || shouldExit; });
 		if (shouldExit) break;
 		justDidPathfinding = true;
-		int spawnAmount = TARGET_CITIZEN_COUNT - activeCitizens.size();
+		size_t spawnAmount = TARGET_CITIZEN_COUNT - activeCitizens.size();
 		if (CITIZEN_RANDOMIZE_SPAWN_AMT) {
 			generateCitizens(rand() % spawnAmount);
 		}
@@ -552,7 +623,7 @@ void pathfindingThread() {
 	}
 }
 
-// TODO fix performance falloff
+// TODO investigate performance falloff (~30% drop after a couple seconds, why?)
 // TODO investigate possible memory leaks
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;

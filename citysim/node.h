@@ -203,7 +203,7 @@ public:
         PathCacheWrapper cachedPath = getCachedPath(end);
         if (cachedPath.pathSize() > 0) {
             std::copy(cachedPath.path.begin(), cachedPath.path.end(), destPath);
-            *destPathSize = cachedPath.pathSize();
+            *destPathSize = (char) cachedPath.pathSize();
             if (cachedPath.pathSize() < CITIZEN_PATH_SIZE) {
                 destPath[cachedPath.pathSize()] = PathWrapper();
             }
@@ -239,7 +239,7 @@ public:
                 }
 
                 std::copy(path.begin(), path.end(), destPath);
-                *destPathSize = pathSize;
+                *destPathSize = (char) pathSize;
                 if (pathSize < CITIZEN_PATH_SIZE) {
                     destPath[pathSize] = PathWrapper();
                 }

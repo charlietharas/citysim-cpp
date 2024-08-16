@@ -59,6 +59,8 @@
 #define STATUS_WALK					5
 #define STATUS_FORWARD				1
 #define STATUS_BACK					0
+#define STATUS_EXISTS				1
+#define STATUS_HIGHLIGHTED			2
 
 // Line
 #define LINE_PATH_SIZE				64

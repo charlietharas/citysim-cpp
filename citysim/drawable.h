@@ -14,17 +14,22 @@ public:
 		sf::CircleShape::setPointCount(numPoints);
 	}
 
-	void goTo(Drawable* other) {
+	inline void goTo(Drawable* other) {
 		sf::CircleShape::setPosition(other->getPosition());
 	}
 
-	Vector2f lerp(float t, Drawable* other) {
+	inline Vector2f lerp(float t, Drawable* other) {
 		if (t > 1) t = 1.0f;
 		return getPosition() * (1.0f - t) + (other->getPosition() * t);
 	}
 
-	float dist(Drawable* other) {
+	inline float dist(Drawable* other) {
 		Vector2f delta = other->getPosition() - getPosition();
+		return sqrt(delta.x * delta.x + delta.y * delta.y);
+	}
+
+	inline float dist(float x, float y) {
+		Vector2f delta = Vector2f(x, y) - getPosition();
 		return sqrt(delta.x * delta.x + delta.y * delta.y);
 	}
 
