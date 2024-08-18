@@ -630,11 +630,11 @@ void simulationThread() {
 
 		#if BENCHMARK_MODE == 1
 		if (simTick % BENCHMARK_STAT_RATE == 0) {
-			std::cout << "\rProgress: " << float(simTick) / BENCHMARK_TICK_DURATION * 100 << "%" << ", " << activeCitizens.size() << " active citizens" << std::flush;
+			std::cout << "\rProgress: " << float(simTick) / BENCHMARK_TICK_DURATION * 100 << "%" << ", " << citizens.activeSize() << " active citizens" << std::flush;
 		}
 		if (simTick >= BENCHMARK_TICK_DURATION) {
 			std::cout << std::endl << "Benchmark concluded at tick " << simTick << std::endl;
-			std::cout << "Handled " << handledCitizens << " citizens with " << handledPathNodes << " handled path nodes" << std::endl;
+			std::cout << "Handled " << handledCitizens << " citizens" << std::endl;
 			shouldExit = true;
 		}
 		#endif
