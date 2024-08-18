@@ -128,7 +128,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
                 destPath[pathSize] = PathWrapper();
             }
 
-            // TODO cache subpaths? would that even make sense?
             cache.put(this, end, destPath, pathSize);
 
             return true;

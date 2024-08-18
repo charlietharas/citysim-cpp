@@ -76,7 +76,7 @@ void generateCitizens(int spawnAmount) {
 			endNode = 0;
 			endRidership = rand() % totalRidership;
 			int i = 0;
-			// TODO optimize ridership calculation
+			// TODO optimize ridership calculation (one for loop)
 			while (i < startRidership) {
 				i += nodes[startNode++].ridership;
 			}
@@ -217,7 +217,7 @@ int init() {
 	std::cout << "Normalized node positions" << std::endl;
 
 	// add Node transfer neighbors
-	// TODO segment window into grid
+	// TODO segment window into grid (subtree)
 	WALKING_LINE = Line();
 	std::strcpy(WALKING_LINE.id, WALK_LINE_ID_STR);
 
@@ -387,7 +387,7 @@ void renderingThread() {
 		sf::Time frameStart = clock.getElapsedTime();
 
 		// get nearest node
-		// TODO optimize with segmented grid
+		// TODO optimize with subtree
 		float minDist = WINDOW_X * WINDOW_Y;
 		Node* closestNode = nullptr;
 		for (int i = 0; i < VALID_NODES; i++) {
@@ -616,7 +616,6 @@ void pathfindingThread() {
 	}
 }
 
-// TODO investigate possible memory leaks
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
 	double timeElapsed = double(clock());

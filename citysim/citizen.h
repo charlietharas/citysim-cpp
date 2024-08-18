@@ -7,6 +7,8 @@ class Node;
 
 extern Line WALKING_LINE;
 
+std::mutex citizenDeletionMutex;
+
 class Citizen : public Drawable {
 public:
 	Citizen() {
@@ -191,6 +193,7 @@ public:
 			vec.push_back(c);
 		}
 		else {
+			std::lock_guard<std::mutex> lock(citizenDeletionMutex);
 			Citizen* c = inactive.top();
 			if (!start->findPath(end, c->path, &c->pathSize)) {
 				return false;
@@ -200,19 +203,22 @@ public:
 		}
 		return true;
 	}
+	// TODO WAY more citizens are getting stuck, fix
 	bool remove(int i) {
 		if (i > size() - 1 || i < 0 || size() == 0) {
 			return false;
 		}
-		if (vec[i].status == STATUS_DESPAWNED) {
-			return false;
-		}
 		vec[i].status = STATUS_DESPAWNED;
+		std::lock_guard<std::mutex> lock(citizenDeletionMutex);
 		inactive.push(&vec[i]);
+
+		if (activeSize() < size() / 2) {
+			shrink();
+		}
 		return true;
 	}
 	void shrink() {
-		// this code is horrendous!
+		// this code is horrendous! too slow to even remotely work.
 		// TODO: swap despawned citizens to the end to batch .erase()
 		std::vector<int> toRemove;
 		for (int i = 0; i < size(); i++) {
