@@ -5,6 +5,8 @@
 #include "macros.h"
 class Node;
 
+extern Line WALKING_LINE;
+
 class Citizen : public Drawable {
 public:
 	Citizen() {

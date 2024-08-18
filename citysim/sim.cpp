@@ -12,11 +12,12 @@
 #include <future>
 
 #include "macros.h"
-#include "line.h"
-#include "train.h"
-#include "node.h"
-#include "citizen.h"
 #include "util.h"
+#include "line.h"
+#include "node.h"
+#include "pcw.h"
+#include "train.h"
+#include "citizen.h"
 
 int VALID_LINES;
 int VALID_NODES;
@@ -41,6 +42,8 @@ Line lines[MAX_LINES];
 Node nodes[MAX_NODES];
 Train trains[MAX_TRAINS];
 CitizenVector citizens(MAX_CITIZENS / 4, MAX_CITIZENS);
+
+Line WALKING_LINE;
 
 std::mutex trainsMutex;
 std::mutex citizensMutex;

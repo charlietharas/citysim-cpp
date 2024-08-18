@@ -11,5 +11,3 @@ public:
 	Node* path[64];
 	float dist[64]; // dist[i] is equal to the distance between path[i] and path[i+1]
 };
-
-Line WALKING_LINE;
