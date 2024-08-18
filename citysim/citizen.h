@@ -7,17 +7,26 @@ class Node;
 
 class Citizen : public Drawable {
 public:
-	Citizen() :
-		Drawable(CITIZEN_SIZE, CITIZEN_N_POINTS) {
+	Citizen() {
+		Drawable(CITIZEN_SIZE, CITIZEN_N_POINTS);
 		sf::CircleShape::setFillColor(sf::Color::Black);
+		clearNonPath();
 	}
 
 	float timer;
 	char status;
 	char index;
 	Train* currentTrain;
+
 	char pathSize;
 	PathWrapper path[CITIZEN_PATH_SIZE];
+
+	inline void clearNonPath() {
+		status = STATUS_SPAWNED;
+		currentTrain = nullptr;
+		index = 0;
+		timer = 0;
+	}
 
 	Node* getCurrentNode() {
 		return path[index].node;
@@ -147,4 +156,86 @@ public:
 	}
 private:
 	bool justBoarded;
+};
+
+class CitizenVector {
+public:
+	CitizenVector(size_t reserve, size_t maxS) {
+		vec.reserve(reserve);
+		maxSize = maxS;
+	}
+	Citizen operator [](int i) const {
+		return vec[i];
+	}
+	Citizen& operator [](int i) {
+		return vec[i];
+	}
+	size_t size() {
+		return vec.size();
+	}
+	size_t activeSize() {
+		return vec.size() - inactive.size();
+	}
+	bool add(Node* start, Node* end) {
+		if (inactive.empty()) {
+			if (size() > maxSize) {
+				return false;
+			}
+			Citizen c = Citizen();
+			if (!start->findPath(end, c.path, &c.pathSize)) {
+				return false;
+			}
+			c.clearNonPath();
+			vec.push_back(c);
+		}
+		else {
+			Citizen* c = inactive.top();
+			if (!start->findPath(end, c->path, &c->pathSize)) {
+				return false;
+			}
+			inactive.pop();
+			c->clearNonPath();
+		}
+		return true;
+	}
+	bool remove(int i) {
+		if (i > size() - 1 || i < 0 || size() == 0) {
+			return false;
+		}
+		if (vec[i].status == STATUS_DESPAWNED) {
+			return false;
+		}
+		vec[i].status = STATUS_DESPAWNED;
+		inactive.push(&vec[i]);
+		return true;
+	}
+	void shrink() {
+		// this code is horrendous!
+		// TODO: swap despawned citizens to the end to batch .erase()
+		std::vector<int> toRemove;
+		for (int i = 0; i < size(); i++) {
+			if (vec[i].status == STATUS_DESPAWNED) {
+				toRemove.push_back(i);
+			}
+		}
+		int decrement = 0;
+		for (int i : toRemove) {
+			vec.erase(vec.begin() + i - decrement++);
+		}
+		vec.shrink_to_fit();
+	}
+	bool triggerCitizenUpdate(int i, float speed) {
+		if (vec[i].status == STATUS_DESPAWNED) {
+			return true;
+		}
+		if (vec[i].updatePositionAlongPath(speed)) {
+			remove(i);
+			return true;
+		}
+		return false;
+	}
+private:
+	std::vector<Citizen> vec;
+	std::stack<Citizen*> inactive;
+	size_t maxSize;
 };

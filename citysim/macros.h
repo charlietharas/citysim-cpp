@@ -51,7 +51,7 @@
 
 // Node and Train status flags
 #define STATUS_DESPAWNED			0
-#define STATUS_DESPAWNED_ERR		0
+#define STATUS_DESPAWNED_ERR		0 // should have the same value as STATUS_DESPAWNED
 #define STATUS_SPAWNED				1
 #define STATUS_IN_TRANSIT			2
 #define STATUS_AT_STOP				3

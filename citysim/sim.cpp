@@ -32,7 +32,6 @@ long unsigned int renderTick;
 
 unsigned int totalRidership;
 unsigned int handledCitizens;
-unsigned int handledPathNodes;
 
 std::vector<size_t> activeCitizensStat;
 std::vector<double> clockStat;
@@ -41,46 +40,28 @@ std::vector<double> simSpeedStat;
 Line lines[MAX_LINES];
 Node nodes[MAX_NODES];
 Train trains[MAX_TRAINS];
-Citizen citizens[MAX_CITIZENS];
-
-// track available pointers to inactive/despawned citizens that can be reactivated with addCitizen()
-// using a stack is more memory-intensive, but should be more optimal to leverage caching
-std::stack<Citizen*> inactiveCitizens;
-// uses a set to track citizens within the global array that are currently active
-std::set<Citizen*> activeCitizens;
+CitizenVector citizens(MAX_CITIZENS / 4, MAX_CITIZENS);
 
 std::mutex trainsMutex;
 std::mutex citizensMutex;
 std::mutex pathsMutex;
-std::mutex citizenDeletionMutex;
 
 std::atomic<bool> justDidPathfinding(false);
 std::atomic<bool> shouldExit(false);
 
 std::condition_variable doPathfinding;
 
-Citizen* addCitizen(Node* startNode, Node* endNode) {
-	if (inactiveCitizens.empty()) {
-		return nullptr;
+bool addCitizen(Node* startNode, Node* endNode) {
+	if (citizens.add(startNode, endNode)) {
+		handledCitizens++;
+		return true;
 	}
-	Citizen* ptr = inactiveCitizens.top();
-	if (!startNode->findPath(endNode, ptr->path, &ptr->pathSize)) {
-		return nullptr;
-	}
-	inactiveCitizens.pop();
-	ptr->status = STATUS_SPAWNED;
-	ptr->currentTrain = nullptr;
-	ptr->index = 0;
-	ptr->timer = 0;
-	handledCitizens++;
-	handledPathNodes += ptr->pathSize;
-	return ptr;
+	return false;
 }
 
 void generateCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
-	std::vector<Citizen*> spawnedCitizens;
 	// int i = lastCitizenSpawnedIndex;
 	while (spawnedCount < spawnAmount) {
 		int startRidership = rand() % totalRidership;
@@ -103,16 +84,9 @@ void generateCitizens(int spawnAmount) {
 		} while (endNode == startNode);
 
 		// add citizen
-		Citizen* c = addCitizen(&nodes[startNode], &nodes[endNode]);
-		if (c != nullptr) {
+		if (addCitizen(&nodes[startNode], &nodes[endNode])) {
 			spawnedCount++;
-			spawnedCitizens.push_back(c);
 		}
-	}
-
-	std::lock_guard<std::mutex> lock(citizensMutex);
-	for (Citizen* c : spawnedCitizens) {
-		activeCitizens.insert(c);
 	}
 }
 
@@ -137,13 +111,6 @@ int init() {
 		trains[i] = Train();
 	}
 	std::cout << "Initialized trains" << std::endl;
-
-	for (int i = 0; i < MAX_CITIZENS; i++) {
-		citizens[i] = Citizen();
-		citizens[i].status = STATUS_DESPAWNED;
-		inactiveCitizens.push(&citizens[i]);
-	}
-	std::cout << "Initialized citizens" << std::endl;
 
 	// read files
 	int row = 0;
@@ -319,7 +286,6 @@ int init() {
 
 	// metrics used for debugging (especially in benchmark mode)
 	handledCitizens = 0;
-	handledPathNodes = 0;
 
 	// generate initial batch of citizens
 	generateCitizens(CITIZEN_SPAWN_INIT);
@@ -543,18 +509,8 @@ void renderingThread() {
 				// press space to spawn CUSTOM_CITIZEN_SPAWN citizens at the nearest node
 				// TODO offload this to the pathfinding thread (should also prevent race conditions)
 				if (event.key.code == sf::Keyboard::Space) {
-					std::vector<Citizen*> spawnedCitizens;
-					spawnedCitizens.reserve(CUSTOM_CITIZEN_SPAWN);
 					for (int i = 0; i < CUSTOM_CITIZEN_SPAWN; i++) {
-						Citizen* c = addCitizen(closestNode, &nodes[rand() % VALID_NODES]);
-						if (c != nullptr) {
-							spawnedCitizens.push_back(c);
-						}
-					}
-
-					std::lock_guard<std::mutex> lock(citizensMutex);
-					for (Citizen* c : spawnedCitizens) {
-						activeCitizens.insert(c);
+						addCitizen(closestNode, &nodes[rand() % VALID_NODES]);
 					}
 				}
 			}
@@ -566,7 +522,7 @@ void renderingThread() {
 		window.draw(bg);
 
 		if (renderTick % TEXT_REFRESH_RATE == 0) {
-			size_t c = activeCitizens.size();
+			size_t c = citizens.activeSize();
 			double s = simSpeedStat[simSpeedStat.size() - 1];
 			text.setString(std::to_string(c) + " active citizens\n" + std::to_string(s) + " ticks/sec\n" + std::to_string(s / c) + " ticks/sec/citizen\n" + closestNode->id);
 		}
@@ -622,8 +578,10 @@ void renderingThread() {
 		// TODO optimize citizen rendering
 		if (drawCitizens) {
 			std::lock_guard<std::mutex> citizenLock(citizensMutex);
-			for (Citizen* c : activeCitizens) {
-				window.draw(*c);
+			for (int i = 0; i < citizens.size(); i++) {
+				if (citizens[i].status != STATUS_DESPAWNED) {
+					window.draw(citizens[i]);
+				}
 			}
 		}
 
@@ -646,7 +604,7 @@ void pathfindingThread() {
 		doPathfinding.wait(lock, [] {return !justDidPathfinding || shouldExit; });
 		if (shouldExit) break;
 		justDidPathfinding = true;
-		int spawnAmount = TARGET_CITIZEN_COUNT - (int) activeCitizens.size();
+		int spawnAmount = TARGET_CITIZEN_COUNT - (int) citizens.activeSize();
 		spawnAmount = CITIZEN_SPAWN_MAX;
 		if (CITIZEN_RANDOMIZE_SPAWN_AMT) {
 			spawnAmount = rand() % spawnAmount;
@@ -680,7 +638,7 @@ void simulationThread() {
 
 		// stats are recorded even outside of benchmark mode
 		if (simTick % BENCHMARK_STAT_RATE == 0) {
-			activeCitizensStat.push_back(activeCitizens.size());
+			activeCitizensStat.push_back(citizens.activeSize());
 			clockStat.push_back(double(clock()));
 			size_t clockSize = clockStat.size();
 			if (clockSize > 1) {
@@ -706,40 +664,23 @@ void simulationThread() {
 			std::lock_guard<std::mutex> lock(citizensMutex);
 			float citizenSpeed = CITIZEN_SPEED * SIM_SPEED;
 
-			size_t chunkSize = activeCitizens.size() / NUM_THREADS + 1;
+			size_t chunkSize = citizens.activeSize() / NUM_THREADS + 1;
 			std::vector<std::future<void>> futures;
-
-			auto citizenIt = activeCitizens.begin();
 			
-			std::vector<Citizen*> citizensToDelete;
-			for (int i = 0; i < NUM_THREADS && citizenIt != activeCitizens.end(); ++i) {
-				auto nextIt = citizenIt;
-				std::advance(nextIt, std::min(chunkSize, (size_t) std::distance(citizenIt, activeCitizens.end())));
-
-				futures.push_back(std::async(std::launch::async, [citizenIt, nextIt, citizenSpeed, &citizensToDelete]() {
+			for (int i = 0; i < NUM_THREADS; i++) {
+				futures.push_back(std::async(std::launch::async, [i, chunkSize, citizenSpeed]() {
 					std::vector<Citizen*> threadCitizensToDelete;
-					for (auto it = citizenIt; it != nextIt; ++it) {
-						Citizen* c = *it;
-						if (c->updatePositionAlongPath(citizenSpeed)) {
-							threadCitizensToDelete.push_back(c);
-						}
-					}
-					std::lock_guard<std::mutex> lock(citizenDeletionMutex);
-					for (Citizen* c : threadCitizensToDelete) {
-						citizensToDelete.emplace_back(c);
-						inactiveCitizens.push(c);
+					size_t j = 0;
+					int ind = i * chunkSize + j;
+					for (j = 0; j < chunkSize && ind < citizens.size(); j++) {
+						ind = i * chunkSize + j;
+						citizens.triggerCitizenUpdate(ind, citizenSpeed);
 					}
 					}));
-
-				citizenIt = nextIt;
 			}
 
 			for (auto& future : futures) {
 				future.get();
-			}
-
-			for (Citizen* c : citizensToDelete) {
-				activeCitizens.erase(c);
 			}
 		}
 	}
