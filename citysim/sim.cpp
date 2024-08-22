@@ -498,7 +498,7 @@ void renderingThread() {
 					SIM_SPEED = std::min(std::max(SIM_SPEED + SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
 				}
 				// press p to toggle simulation pause
-				// TODO pause thread instead of shutting sim speed
+				// TODO pause thread instead of shutting sim speed (or, if lazy, just add a check if speed==0 and wait 1/FPS sec)
 				if (event.key.code == sf::Keyboard::P) {
 					paused = !paused;
 					if (paused) {
@@ -515,6 +515,11 @@ void renderingThread() {
 					for (int i = 0; i < CUSTOM_CITIZEN_SPAWN; i++) {
 						addCitizen(closestNode, &nodes[rand() % VALID_NODES]);
 					}
+				}
+				// press semicolon to output citizen vector profile for debugging
+				if (event.key.code == sf::Keyboard::SemiColon) {
+					std::lock_guard<std::mutex> lock(citizensMutex);
+					citizens.profile();
 				}
 			}
 		}
@@ -591,7 +596,7 @@ void renderingThread() {
 		window.display();
 
 		// frame rate control
-		// TODO just enable vsync?
+		// vsync is for losers
 		sf::Time frameTime = clock.getElapsedTime() - frameStart;
 		sf::Int64 sleepTime = FRAME_DURATION.count() - frameTime.asMicroseconds();
 		if (sleepTime > 0) {

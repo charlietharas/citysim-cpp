@@ -1,6 +1,8 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <string>
+#include <mutex>
 #include "drawable.h"
 #include "macros.h"
 class Node;
@@ -50,29 +52,44 @@ public:
 		return path[index + 1].line;
 	}
 
-	// returns true if the citizen has been despawned/is despawned
-	bool updatePositionAlongPath(float speed) {
-		timer += speed;
-		float dist;
+	std::string getPathSummary() {
+		char sum[NODE_ID_SIZE * 4 + 11];
+		std::strcpy(sum, path[0].node->id);
+		std::strcat(sum, "->");
+		std::strcat(sum, path[pathSize - 1].node->id);
+		std::strcat(sum, "(");
+		std::strcat(sum, getCurrentNode()->id);
+		std::strcat(sum, " : ");
+		std::strcat(sum, getNextNode()->id);
+		std::strcat(sum, ")");
+		return sum;
+	}
 
+	// returns true if the citizen has been despawned/is despawned
+	// TODO this function is failing a lot, debug
+	bool updatePositionAlongPath(float speed) {
 		if (index == pathSize - 1) {
 			status = STATUS_DESPAWNED;
 			return true;
 		}
 
 		if (getCurrentNode() == nullptr || getCurrentLine() == nullptr) {
+			std::cout << "ERR: Despawned NULLPATHREF citizen @" << index << ": " << getPathSummary() << std::endl;
 			status = STATUS_DESPAWNED_ERR;
 			return true;
 		}
 
-		// TODO actually handle these errors instead of just despawning/ignoring them
-		if (timer > CITIZEN_DESPAWN_THRESH) {
-			if (status == STATUS_AT_STOP) {
-				getCurrentNode()->capacity = std::min(getCurrentNode()->capacity-1, unsigned int(0));
-			}
-			status = STATUS_DESPAWNED_ERR;
-			return true;
-		}
+		//if (timer > CITIZEN_DESPAWN_THRESH) {
+		//	if (status == STATUS_AT_STOP) {
+		//		getCurrentNode()->capacity = std::min(getCurrentNode()->capacity-1, 0u);
+		//	}
+		//	// std::cout << "ERR: Despawned TIMEOUT citizen @" << index << ": " << getPathSummary() << std::endl;
+		//	status = STATUS_DESPAWNED_ERR;
+		//	return true;
+		//}
+
+		timer += speed;
+		float dist;
 
 		switch (status) {
 		case STATUS_DESPAWNED:
@@ -80,17 +97,13 @@ public:
 		case STATUS_SPAWNED:
 			if (getCurrentLine() == &WALKING_LINE) {
 				status = STATUS_WALK;
-			} else {
+			}
+			else {
 				status = STATUS_TRANSFER;
 				getCurrentNode()->capacity++;
 			}
+			return false;
 		case STATUS_WALK:
-			// this is kind of janky
-			if (getNextNode() == nullptr) {
-				status = STATUS_DESPAWNED;
-				return true;
-			}
-
 			dist = getCurrentNode()->dist(getNextNode());
 			setPosition(getCurrentNode()->lerp(dist, getNextNode()));
 			if (timer > dist) {
@@ -100,6 +113,7 @@ public:
 				}
 				else {
 					status = STATUS_TRANSFER;
+					getCurrentNode()->capacity++;
 				}
 				index++;
 			}
@@ -111,7 +125,7 @@ public:
 				status = STATUS_AT_STOP;
 			}
 			return false;
-		// some citizens definitely get stuck here
+		// MANY citizens definitely get stuck here
 		case STATUS_AT_STOP:
 			for (int i = 0; i < N_TRAINS; i++) {
 				Train* t = getCurrentNode()->trains[i];
@@ -120,12 +134,16 @@ public:
 					status = STATUS_IN_TRANSIT;
 					currentTrain = t;
 					currentTrain->capacity++;
-					getCurrentNode()->capacity = std::min(getCurrentNode()->capacity-1, unsigned int(0));
+					getCurrentNode()->capacity = std::min(getCurrentNode()->capacity - 1, 0u);
 					index++;
 					justBoarded = true;
 				}
+				if (timer > CITIZEN_DESPAWN_THRESH) {
+					std::cout << "ERR: Detected STUCK citizen @" << index << ": " << getPathSummary() << std::endl;
+				}
 			}
 			return false;
+		// some citizens are also getting stuck here
 		case STATUS_IN_TRANSIT:
 			if (justBoarded && currentTrain->status == STATUS_IN_TRANSIT) justBoarded = false;
 			if (!justBoarded && currentTrain->status == STATUS_AT_STOP && currentTrain->getCurrentStop() == getCurrentNode()) {
@@ -138,26 +156,29 @@ public:
 				}
 
 				if (getCurrentLine() != currentTrain->line) {
-					currentTrain->capacity = std::min(currentTrain->capacity, unsigned int(0));
+					currentTrain->capacity = std::min(currentTrain->capacity, 0u);
 
 					if (getCurrentLine() == &WALKING_LINE) {
 						status = STATUS_WALK;
-					} else {
+					}
+					else {
 						status = STATUS_TRANSFER;
 						getCurrentNode()->capacity++;
 					}
 
 					goTo(getCurrentNode());
 					currentTrain = nullptr;
-						
+
 				}
-			} else {
+			}
+			else {
 				goTo(currentTrain);
 			}
 			return false;
+		default:
+			return (status == STATUS_DESPAWNED);
 		}
-		return (status == STATUS_DESPAWNED);
-	}
+		}
 private:
 	bool justBoarded;
 };
@@ -174,10 +195,10 @@ public:
 	Citizen& operator [](int i) {
 		return vec[i];
 	}
-	size_t size() {
+	inline size_t size() {
 		return vec.size();
 	}
-	size_t activeSize() {
+	inline size_t activeSize() {
 		return vec.size() - inactive.size();
 	}
 	bool add(Node* start, Node* end) {
@@ -203,35 +224,18 @@ public:
 		}
 		return true;
 	}
-	// TODO WAY more citizens are getting stuck, fix
 	bool remove(int i) {
 		if (i > size() - 1 || i < 0 || size() == 0) {
 			return false;
 		}
 		vec[i].status = STATUS_DESPAWNED;
+		
 		std::lock_guard<std::mutex> lock(citizenDeletionMutex);
 		inactive.push(&vec[i]);
 
-		if (activeSize() < size() / 2) {
-			shrink();
-		}
 		return true;
 	}
-	void shrink() {
-		// this code is horrendous! too slow to even remotely work.
-		// TODO: swap despawned citizens to the end to batch .erase()
-		std::vector<int> toRemove;
-		for (int i = 0; i < size(); i++) {
-			if (vec[i].status == STATUS_DESPAWNED) {
-				toRemove.push_back(i);
-			}
-		}
-		int decrement = 0;
-		for (int i : toRemove) {
-			vec.erase(vec.begin() + i - decrement++);
-		}
-		vec.shrink_to_fit();
-	}
+	// TODO implement shrink function?
 	bool triggerCitizenUpdate(int i, float speed) {
 		if (vec[i].status == STATUS_DESPAWNED) {
 			return true;
@@ -241,6 +245,39 @@ public:
 			return true;
 		}
 		return false;
+	}
+	void profile() {
+		std::map<std::string, int> counts{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0} };
+		for (Citizen& c : vec) {
+			switch (c.status) {
+			case STATUS_DESPAWNED:
+				counts["DSPN"]++;
+				break;
+			case STATUS_SPAWNED:
+				counts["SPWN"]++;
+				break;
+			case STATUS_IN_TRANSIT:
+				counts["MOVE"]++;
+				break;
+			case STATUS_TRANSFER:
+				counts["TSFR"]++;
+				break;
+			case STATUS_AT_STOP:
+				counts["STOP"]++;
+				break;
+			case STATUS_WALK:
+				counts["WALK"]++;
+				break;
+			}
+		}
+		for (std::map<std::string, int>::iterator it = counts.begin(); it != counts.end(); it++) {
+			char buffer[8];
+			std::sprintf(buffer, "%.2f", (it->second / (float)size() * 100));
+			std::cout << it->first << " : " << it->second << "(" << buffer << "%)\t";
+		}
+		std::cout << std::endl;
+
+		std::cout << vec[0].getPathSummary() << std::endl;
 	}
 private:
 	std::vector<Citizen> vec;
