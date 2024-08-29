@@ -468,8 +468,23 @@ void renderingThread() {
 					break;
 				}
 			}
-			// TODO pan with arrow keys
 			else if (event.type == sf::Event::KeyPressed) {
+				// press up arrow to pan up
+				if (event.key.code == sf::Keyboard::Up) {
+					view.move(sf::Vector2f(0, -ARROW_PAN_AMT));
+				}
+				// press down arrow to pan down
+				if (event.key.code == sf::Keyboard::Down) {
+					view.move(sf::Vector2f(0, ARROW_PAN_AMT));
+				}
+				// press left arrow to pan left
+				if (event.key.code == sf::Keyboard::Left) {
+					view.move(sf::Vector2f(-ARROW_PAN_AMT, 0));
+				}
+				// press right arrow to pan right
+				if (event.key.code == sf::Keyboard::Right) {
+					view.move(sf::Vector2f(ARROW_PAN_AMT, 0));
+				}
 				// press 1 to toggle nodes visibility
 				if (event.key.code == sf::Keyboard::Num1) {
 					drawNodes = !drawNodes;

@@ -1,17 +1,27 @@
 #include "pcw.h"
 
 PathCacheWrapper::PathCacheWrapper() {
-    set(nullptr, nullptr, nullptr, 0, -1);
+    set(nullptr, nullptr, nullptr, 0, -1, false);
 }
 
 PathCacheWrapper::PathCacheWrapper(Node* st, Node* e, PathWrapper* p, size_t s) {
-    set(st, e, p, s, -1);
+    set(st, e, p, s, -1, false);
 }
 
-void PathCacheWrapper::set(Node* st, Node* e, PathWrapper* p, size_t s, int l) {
-    for (size_t i = 0; i < s; i++) {
-        path[i] = p[i];
+void PathCacheWrapper::set(Node* st, Node* e, PathWrapper* p, size_t s, int l, bool reversePath) {
+    if (reversePath) {
+        for (size_t i = 0; i < s-1; i++) {
+            path[i].node = p[s-i-1].node;
+            path[i].line = p[s - i - 2].line;
+        }
+        path[s - 1] = p[0];
     }
+    else {
+        for (size_t i = 0; i < s; i++) {
+            path[i] = p[i];
+        }
+    }
+
     startNode = st;
     endNode = e;
     size = s;
@@ -32,9 +42,6 @@ size_t PathCacheWrapper::last() {
 
 PathCache::PathCache(size_t numBuckets, size_t bucketSize) {
     cache = new PathCacheWrapper[numBuckets * bucketSize];
-    for (int i = 0; i < numBuckets * bucketSize; i++) {
-        cache[i] = PathCacheWrapper();
-    }
     NUM_BUCKETS = numBuckets;
     BUCKET_SIZE = bucketSize;
 }
@@ -43,7 +50,7 @@ PathCache::~PathCache() {
     delete(cache);
 }
 
-bool PathCache::put(Node* start, Node* end, PathWrapper* p, size_t s) {
+bool PathCache::put(Node* start, Node* end, PathWrapper* p, size_t s, bool reversePath) {
     int bucket = (start->numerID + end->numerID) % NUM_BUCKETS;
     int bucketInd = bucket * BUCKET_SIZE;
     int max = -1;
@@ -52,7 +59,7 @@ bool PathCache::put(Node* start, Node* end, PathWrapper* p, size_t s) {
         int ind = bucketInd + i;
         int lru = cache[ind].lru;
         if (lru == -1) {
-            cache[ind].set(start, end, p, s, 0);
+            cache[ind].set(start, end, p, s, 0, reversePath);
             return false;
         }
         if (lru > max) {
@@ -60,7 +67,7 @@ bool PathCache::put(Node* start, Node* end, PathWrapper* p, size_t s) {
             maxInd = ind;
         }
     }
-    cache[maxInd].set(start, end, p, s, 0);
+    cache[maxInd].set(start, end, p, s, 0, reversePath);
     return true;
 }
 

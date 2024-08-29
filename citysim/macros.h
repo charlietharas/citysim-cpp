@@ -21,6 +21,7 @@
 #define ZOOM_SCALE					0.1f
 #define ZOOM_MIN					0.5f
 #define ZOOM_MAX					4.0f
+#define ARROW_PAN_AMT				15.0f
 #define TRAIN_MIN_SIZE				5.0f
 #define TRAIN_MAX_SIZE				10.0f
 #define TRAIN_SIZE_DIFF				TRAIN_MAX_SIZE - TRAIN_MIN_SIZE
@@ -31,7 +32,7 @@
 #define NODE_N_POINTS				10
 #define CITIZEN_SIZE				4.0f
 #define CITIZEN_N_POINTS			4
-#define TEXT_REFRESH_RATE			10 // every n frames
+#define TEXT_REFRESH_RATE			15 // every n frames
 
 // Simulation size
 #define MAX_LINES					32

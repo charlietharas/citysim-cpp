@@ -83,13 +83,6 @@ PathCacheWrapper* Node::getCachedPath(Node* end) {
         return pcw;
     }
 
-    // TODO make cache actually bidirectional
-    //pcw = cache.get(end, this);
-    //if (pcw != nullptr && pcw->size > 0) {
-    //    std::reverse(pcw->begin(), pcw->end());
-    //    return pcw;
-    //}
-
     return nullptr;
 }
 
@@ -135,7 +128,10 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             std::copy(path.begin(), path.end(), destPath);
             *destPathSize = (char)pathSize;
 
-            cache.put(this, end, destPath, pathSize);
+            cache.put(this, end, destPath, pathSize, false);
+            cache.put(end, this, destPath, pathSize, true); 
+            // yes, this could be made more (~twice as) memory efficient by reversing on cache get(), but this code was much more annoying to write
+            // oh well!
 
             return true;
         }
