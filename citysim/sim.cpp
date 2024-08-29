@@ -376,7 +376,6 @@ void renderingThread() {
 	Node* node2 = nullptr;
 	char nodeCount = 0;
 	PathWrapper userPath[CITIZEN_PATH_SIZE];
-	sf::Color userPathColors[CITIZEN_PATH_SIZE];
 	char userPathSize;
 	sf::VertexBuffer userPathVertexBuffer(sf::LinesStrip, sf::VertexBuffer::Usage::Static);
 
@@ -434,23 +433,14 @@ void renderingThread() {
 				case 0:
 					node1 = closestNode;
 					std::cout << "User selected start " << node1->id << std::endl;
-					userPathColors[0] = node1->getFillColor();
-					node1->setFillColor(sf::Color::Cyan);
 					nodeCount++;
 					break;
 				case 1:
 					node2 = closestNode;
 					if (node2->findPath(node1, userPath, &userPathSize)) {
-						userPathColors[userPathSize - 1] = node2->getFillColor();
-						node2->setFillColor(sf::Color::Cyan);
 						std::cout << "User selected end " << node2->id << std::endl;
 						for (char i = 0; i < userPathSize; i++) {
-							// TODO this is sloppy, rewrite
-							if (i > 0 && i < userPathSize-1) {
-								userPathColors[i] = userPath[i].node->getFillColor();
-								userPath[i].node->setFillColor(sf::Color::Cyan);
-							}
-							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), sf::Color::Cyan));
+							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), userPath[i].node->getFillColor()));
 						}
 						userPathVertexBuffer.create(userPathSize);
 						userPathVertexBuffer.update(userPathVertices.data());
@@ -459,11 +449,6 @@ void renderingThread() {
 					break;
 				case 2:
 					std::cout << "User cleared selection" << std::endl;
-					node1->setFillColor(userPathColors[0]);
-					node2->setFillColor(userPathColors[userPathSize - 1]);
-					for (char i = 1; i < userPathSize-1; i++) {
-						userPath[i].node->setFillColor(userPathColors[i]);
-					}
 					userPathSize = 0;
 					userPathVertices.clear();
 					userPathVertexBuffer.update(userPathVertices.data());
@@ -532,7 +517,7 @@ void renderingThread() {
 		if (renderTick % TEXT_REFRESH_RATE == 0) {
 			size_t c = citizens.activeSize();
 			double s = simSpeedStat[simSpeedStat.size() - 1];
-			text.setString(std::to_string(c) + " active citizens\n" + std::to_string(s) + " ticks/sec\n" + std::to_string(s / c) + " ticks/sec/citizen\n" + closestNode->id);
+			text.setString(std::to_string(c) + " active citizens\n" + std::to_string(s) + " ticks/sec\n" + closestNode->id);
 		}
 		window.draw(text);
 
@@ -560,9 +545,9 @@ void renderingThread() {
 			nodeVertices.clear();
 			for (int i = 0; i < VALID_NODES; i++) {
 
-				if (nodes[i].capacity > NODE_CAPACITY_WARN_THRESH) {
-					// std::cout << "ERR unusually large node " << nodes[i].id << "(" << nodes[i].capacity << ")" << std::endl;
-				}
+				//if (nodes[i].capacity > NODE_CAPACITY_WARN_THRESH) {
+				//	 std::cout << "ERR unusually large node " << nodes[i].id << "(" << nodes[i].capacity << ")" << std::endl;
+				//}
 
 				float newRadius = NODE_MIN_SIZE + std::min(NODE_CAPACITY, nodes[i].capacity) / NODE_CAPACITY_FLOAT * (NODE_SIZE_DIFF);
 				nodes[i].updateRadius(newRadius);

@@ -31,7 +31,7 @@ size_t PathCacheWrapper::last() {
 }
 
 PathCache::PathCache(size_t numBuckets, size_t bucketSize) {
-    cache = (PathCacheWrapper*)malloc(numBuckets * bucketSize * sizeof(PathCacheWrapper));
+    cache = new PathCacheWrapper[numBuckets * bucketSize];
     for (int i = 0; i < numBuckets * bucketSize; i++) {
         cache[i] = PathCacheWrapper();
     }
@@ -40,7 +40,7 @@ PathCache::PathCache(size_t numBuckets, size_t bucketSize) {
 }
 
 PathCache::~PathCache() {
-    free(cache);
+    delete(cache);
 }
 
 bool PathCache::put(Node* start, Node* end, PathWrapper* p, size_t s) {
