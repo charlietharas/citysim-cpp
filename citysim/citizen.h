@@ -13,11 +13,9 @@ std::mutex citizenDeletionMutex;
 
 std::map<std::string, unsigned int> stuckMap;
 
-class Citizen : public Drawable {
+class Citizen {
 public:
 	Citizen() {
-		Drawable(CITIZEN_SIZE, CITIZEN_N_POINTS);
-		sf::CircleShape::setFillColor(sf::Color::Black);
 		clearNonPath();
 	}
 
@@ -97,7 +95,6 @@ public:
 			return false;
 		case STATUS_WALK:
 			dist = getCurrentNode()->dist(getNextNode());
-			setPosition(getCurrentNode()->lerp(dist, getNextNode()));
 			if (timer > dist) {
 				timer = 0;
 				if (getNextLine() == &WALKING_LINE) {
@@ -113,7 +110,6 @@ public:
 		case STATUS_TRANSFER:
 			if (timer > CITIZEN_TRANSFER_THRESH) {
 				timer = 0;
-				goTo(getCurrentNode());
 				status = STATUS_AT_STOP;
 			}
 			return false;
@@ -159,13 +155,9 @@ public:
 						getCurrentNode()->capacity++;
 					}
 
-					goTo(getCurrentNode());
 					currentTrain = nullptr;
 
 				}
-			}
-			else {
-				goTo(currentTrain);
 			}
 			return false;
 		default:

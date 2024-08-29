@@ -335,7 +335,6 @@ void renderingThread() {
 	bool drawNodes = true;
 	bool drawLines = true;
 	bool drawTrains = true;
-	bool drawCitizens = false;
 	bool paused = false;
 
 	// generate vertex buffer for line (path) shapes
@@ -498,10 +497,6 @@ void renderingThread() {
 				if (event.key.code == sf::Keyboard::Num3) {
 					drawTrains = !drawTrains;
 				}
-				// press 4 to toggle citizens visibility
-				if (event.key.code == sf::Keyboard::Num4) {
-					drawCitizens = !drawCitizens;
-				}
 				// press - to decrease simulation speed (up to minimum)
 				if (event.key.code == sf::Keyboard::Subtract && !paused) {
 					SIM_SPEED = std::min(std::max(SIM_SPEED - SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
@@ -603,16 +598,6 @@ void renderingThread() {
 			}
 			else {
 				window.draw(linesVertexBuffer);
-			}
-		}
-
-		// TODO optimize citizen rendering
-		if (drawCitizens) {
-			std::lock_guard<std::mutex> citizenLock(citizensMutex);
-			for (int i = 0; i < citizens.size(); i++) {
-				if (citizens[i].status != STATUS_DESPAWNED) {
-					window.draw(citizens[i]);
-				}
 			}
 		}
 

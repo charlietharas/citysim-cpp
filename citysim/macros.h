@@ -27,13 +27,11 @@
 #define TRAIN_MIN_SIZE				5.0f
 #define TRAIN_MAX_SIZE				10.0f
 #define TRAIN_SIZE_DIFF				TRAIN_MAX_SIZE - TRAIN_MIN_SIZE
-#define TRAIN_N_POINTS				20
+#define TRAIN_N_POINTS				16
 #define NODE_MIN_SIZE				2.0f
 #define NODE_MAX_SIZE				8.0f
 #define NODE_SIZE_DIFF				NODE_MAX_SIZE - NODE_MIN_SIZE
-#define NODE_N_POINTS				10
-#define CITIZEN_SIZE				4.0f
-#define CITIZEN_N_POINTS			4
+#define NODE_N_POINTS				8
 #define TEXT_REFRESH_RATE			15 // every n frames
 
 // Simulation size
