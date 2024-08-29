@@ -21,7 +21,9 @@
 #define ZOOM_SCALE					0.1f
 #define ZOOM_MIN					0.5f
 #define ZOOM_MAX					4.0f
-#define ARROW_PAN_AMT				15.0f
+#define ARROW_PAN_AMT				6.0f
+#define MAX_PAN_VEL					15.0f
+#define PAN_DECAY					0.9f
 #define TRAIN_MIN_SIZE				5.0f
 #define TRAIN_MAX_SIZE				10.0f
 #define TRAIN_SIZE_DIFF				TRAIN_MAX_SIZE - TRAIN_MIN_SIZE

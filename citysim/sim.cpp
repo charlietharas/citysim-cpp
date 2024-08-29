@@ -330,6 +330,7 @@ void renderingThread() {
 	// draw handlers
 	sf::View view(Vector2f(WINDOW_X / 2, WINDOW_Y / 2), Vector2f(WINDOW_X, WINDOW_Y));
 	Vector2f panOffset(0, 0);
+	Vector2f panVelocity(0, 0);
 	float simZoom = 1.0f;
 	bool drawNodes = true;
 	bool drawLines = true;
@@ -471,19 +472,19 @@ void renderingThread() {
 			else if (event.type == sf::Event::KeyPressed) {
 				// press up arrow to pan up
 				if (event.key.code == sf::Keyboard::Up) {
-					view.move(sf::Vector2f(0, -ARROW_PAN_AMT));
+					panVelocity += Vector2f(0, -ARROW_PAN_AMT);
 				}
 				// press down arrow to pan down
 				if (event.key.code == sf::Keyboard::Down) {
-					view.move(sf::Vector2f(0, ARROW_PAN_AMT));
+					panVelocity += Vector2f(0, ARROW_PAN_AMT);
 				}
 				// press left arrow to pan left
 				if (event.key.code == sf::Keyboard::Left) {
-					view.move(sf::Vector2f(-ARROW_PAN_AMT, 0));
+					panVelocity += Vector2f(-ARROW_PAN_AMT, 0);
 				}
 				// press right arrow to pan right
 				if (event.key.code == sf::Keyboard::Right) {
-					view.move(sf::Vector2f(ARROW_PAN_AMT, 0));
+					panVelocity += Vector2f(ARROW_PAN_AMT, 0);
 				}
 				// press 1 to toggle nodes visibility
 				if (event.key.code == sf::Keyboard::Num1) {
@@ -535,6 +536,11 @@ void renderingThread() {
 				}
 			}
 		}
+
+		panVelocity *= PAN_DECAY;
+		panVelocity.x = std::max(std::min(panVelocity.x, MAX_PAN_VEL), -MAX_PAN_VEL);
+		panVelocity.y = std::max(std::min(panVelocity.y, MAX_PAN_VEL), -MAX_PAN_VEL);
+		view.move(panVelocity);
 
 		window.clear();
 
