@@ -378,6 +378,8 @@ void renderingThread() {
 	PathWrapper userPath[CITIZEN_PATH_SIZE];
 	char userPathSize;
 	sf::VertexBuffer userPathVertexBuffer(sf::LinesStrip, sf::VertexBuffer::Usage::Static);
+	sf::Color firstColor;
+	sf::Color secondColor;
 
 	while (window.isOpen() && !shouldExit) {
 		renderTick++;
@@ -432,12 +434,20 @@ void renderingThread() {
 				switch (nodeCount) {
 				case 0:
 					node1 = closestNode;
+					if (node1->getFillColor() != sf::Color::Cyan) {
+						firstColor = node1->getFillColor();
+					}
+					node1->setFillColor(sf::Color::Cyan);
 					std::cout << "User selected start " << node1->id << std::endl;
 					nodeCount++;
 					break;
 				case 1:
 					node2 = closestNode;
 					if (node2->findPath(node1, userPath, &userPathSize)) {
+						if (node2->getFillColor() != sf::Color::Cyan) {
+							secondColor = node2->getFillColor();
+						}
+						node2->setFillColor(sf::Color::Cyan);
 						std::cout << "User selected end " << node2->id << std::endl;
 						for (char i = 0; i < userPathSize; i++) {
 							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), userPath[i].node->getFillColor()));
@@ -449,6 +459,8 @@ void renderingThread() {
 					break;
 				case 2:
 					std::cout << "User cleared selection" << std::endl;
+					node1->setFillColor(firstColor);
+					node2->setFillColor(secondColor);
 					userPathSize = 0;
 					userPathVertices.clear();
 					userPathVertexBuffer.update(userPathVertices.data());
