@@ -13,5 +13,5 @@ void colorConvert(sf::Color* v, const std::string& a) {
 
 // utility function to update capacity of node/train by -1 without uint overflow
 inline void subCapacity(unsigned int* ptr) {
-	*ptr = std::min(*ptr, 0u);
+	*ptr = std::min(*ptr - 1, 0u);
 }

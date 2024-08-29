@@ -34,6 +34,8 @@ long unsigned int renderTick;
 unsigned int totalRidership;
 unsigned int handledCitizens;
 
+int toggleSpawn;
+
 std::vector<size_t> activeCitizensStat;
 std::vector<double> clockStat;
 std::vector<double> simSpeedStat;
@@ -43,18 +45,23 @@ Node nodes[MAX_NODES];
 Train trains[MAX_TRAINS];
 CitizenVector citizens(MAX_CITIZENS / 4, MAX_CITIZENS);
 
+Node* closestNode;
+
 Line WALKING_LINE;
 
 std::mutex trainsMutex;
 std::mutex citizensMutex;
 std::mutex pathsMutex;
+std::mutex presetCitizenMutex;
 
+std::atomic<bool> customSpawnCitizens(false);
 std::atomic<bool> justDidPathfinding(false);
 std::atomic<bool> shouldExit(false);
 
 std::condition_variable doPathfinding;
+std::condition_variable doCustomCitizenSpawn;
 
-// TODO "best-practice" everything into proper .h and .cpp files
+// TODO "best-practice" everything into proper .h and .cpp files, clean up comments, clean up code + formatting
 
 bool addCitizen(Node* startNode, Node* endNode) {
 	if (citizens.add(startNode, endNode)) {
@@ -93,6 +100,28 @@ void generateCitizens(int spawnAmount) {
 			spawnedCount++;
 		}
 	}
+}
+
+void debugStuckCitizens() {
+	for (int i = 0; i < citizens.size(); i++) {
+		Citizen& c = citizens[i];
+		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN) {
+			if (c.status == STATUS_AT_STOP) {
+				c.getCurrentNode()->capacity = std::min(c.getCurrentNode()->capacity - 1, 0u);
+				stuckMap[c.currentPathStr()]++;
+			}
+			c.status = STATUS_DESPAWNED_ERR;
+		}
+	}
+
+	if (!stuckMap.empty()) {
+		std::cout << "Citizens stuck at: " << std::endl;
+		for (auto const& x : stuckMap) {
+			std::cout << x.first << ": " << x.second << "\t";
+		}
+		std::cout << std::endl;
+	}
+	stuckMap.clear();
 }
 
 int init() {
@@ -285,12 +314,10 @@ int init() {
 	}
 	std::cout << "Processed nodes and generated initial trains" << std::endl;
 
-	// tick counters used for timing various operations
 	simTick = 0;
 	renderTick = 0;
-
-	// metrics used for debugging (especially in benchmark mode)
 	handledCitizens = 0;
+	toggleSpawn = 1;
 
 	// generate initial batch of citizens
 	generateCitizens(CITIZEN_SPAWN_INIT);
@@ -309,14 +336,14 @@ void renderingThread() {
 	// window
 	sf::ContextSettings settings;
 	settings.antialiasingLevel = 4;
-	sf::RenderWindow window(sf::VideoMode(WINDOW_X, WINDOW_Y), "CitySim", sf::Style::Titlebar | sf::Style::Close, settings);
+	sf::RenderWindow window(sf::VideoMode(WINDOW_X, WINDOW_Y), "CitySim C Edition", sf::Style::Titlebar | sf::Style::Close, settings);
 
 	// fps limiter
 	sf::Clock clock;
 
 	// white background
-	sf::RectangleShape bg(Vector2f(WINDOW_X * 10, WINDOW_Y * 10));
-	bg.setPosition(WINDOW_X * -5, WINDOW_Y * -5);
+	sf::RectangleShape bg(Vector2f(WINDOW_X * ZOOM_MIN * 2, WINDOW_Y * ZOOM_MIN * 2));
+	bg.setPosition(WINDOW_X * -ZOOM_MIN, WINDOW_Y * -ZOOM_MIN);
 	bg.setFillColor(sf::Color(255, 255, 255, 255));
 
 	// stats text
@@ -324,7 +351,7 @@ void renderingThread() {
 	sf::Font font;
 	font.loadFromFile("Arial.ttf");
 	text.setFont(font);
-	text.setCharacterSize(16);
+	text.setCharacterSize(TEXT_FONT_SIZE);
 	text.setFillColor(sf::Color::Black);
 
 	// draw handlers
@@ -390,11 +417,11 @@ void renderingThread() {
 		// get nearest node
 		// TODO optimize with subtree
 		float minDist = WINDOW_X * WINDOW_Y;
-		Node* closestNode = nullptr;
+		closestNode = &nodes[0];
+		Vector2f relMousePos = Vector2f(sf::Mouse::getPosition(window)) + view.getCenter() - Vector2f(WINDOW_X / 2, WINDOW_Y / 2);
+		relMousePos = view.getCenter() + (relMousePos - view.getCenter()) * simZoom;
 		for (int i = 0; i < VALID_NODES; i++) {
-			// TODO transform by zoom (REQUIRED!) -- write a function to get "real" mouse position
-			Vector2f pos = Vector2f(sf::Mouse::getPosition() - window.getPosition()) - Vector2f(0, 40);
-			float dist = nodes[i].dist(pos.x, pos.y);
+			float dist = nodes[i].dist(relMousePos.x, relMousePos.y);
 			if (dist < minDist) {
 				minDist = dist;
 				closestNode = &nodes[i];
@@ -414,11 +441,11 @@ void renderingThread() {
 			else if (event.type == sf::Event::MouseWheelScrolled) {
 				float zoom = 1.0f + event.mouseWheelScroll.delta * ZOOM_SCALE * -1;
 				simZoom *= zoom;
-				if (simZoom > ZOOM_MIN && simZoom < ZOOM_MAX) {
+				if (simZoom > ZOOM_MAX && simZoom < ZOOM_MIN) {
 					view.zoom(zoom);
 				}
 				else {
-					simZoom = std::max(ZOOM_MIN, std::min(simZoom, ZOOM_MAX));
+					simZoom = std::max(ZOOM_MAX, std::min(simZoom, ZOOM_MIN));
 				}
 			}
 			// pan
@@ -443,7 +470,7 @@ void renderingThread() {
 					break;
 				case 1:
 					node2 = closestNode;
-					if (node2->findPath(node1, userPath, &userPathSize)) {
+					if (node1 != node2 && node2->findPath(node1, userPath, &userPathSize)) {
 						if (node2->getFillColor() != sf::Color::Cyan) {
 							secondColor = node2->getFillColor();
 						}
@@ -518,16 +545,29 @@ void renderingThread() {
 					}
 				}
 				// press space to spawn CUSTOM_CITIZEN_SPAWN_AMT citizens at the nearest node
-				// TODO offload this to the pathfinding thread (should also prevent race conditions)
 				if (event.key.code == sf::Keyboard::Space) {
-					for (int i = 0; i < CUSTOM_CITIZEN_SPAWN_AMT; i++) {
-						addCitizen(closestNode, &nodes[rand() % VALID_NODES]);
+					{
+						std::unique_lock<std::mutex> lock(presetCitizenMutex);
+						customSpawnCitizens = true;
 					}
+					doPathfinding.notify_one();
+					std::unique_lock<std::mutex> lock(presetCitizenMutex);
+					doCustomCitizenSpawn.wait(lock, [] {return !customSpawnCitizens;  });
 				}
 				// press semicolon to output citizen vector profile for debugging
 				if (event.key.code == sf::Keyboard::SemiColon) {
 					std::lock_guard<std::mutex> lock(citizensMutex);
 					citizens.profile();
+					debugStuckCitizens();
+				}
+				// press O to toggle "passive" citizen spawning
+				if (event.key.code == sf::Keyboard::O) {
+					if (toggleSpawn == 0) {
+						toggleSpawn = 1;
+					}
+					else {
+						toggleSpawn = 0;
+					}
 				}
 			}
 		}
@@ -573,9 +613,9 @@ void renderingThread() {
 			nodeVertices.clear();
 			for (int i = 0; i < VALID_NODES; i++) {
 
-				//if (nodes[i].capacity > NODE_CAPACITY_WARN_THRESH) {
-				//	 std::cout << "ERR unusually large node " << nodes[i].id << "(" << nodes[i].capacity << ")" << std::endl;
-				//}
+				if (nodes[i].capacity > NODE_CAPACITY_WARN_THRESH) {
+					 std::cout << "ERR unusually large node " << nodes[i].id << "(" << nodes[i].capacity << ")" << std::endl;
+				}
 
 				float newRadius = NODE_MIN_SIZE + std::min(NODE_CAPACITY, nodes[i].capacity) / NODE_CAPACITY_FLOAT * (NODE_SIZE_DIFF);
 				nodes[i].updateRadius(newRadius);
@@ -616,19 +656,36 @@ void renderingThread() {
 void pathfindingThread() {
 	std::unique_lock<std::mutex> lock(pathsMutex);
 	while (!shouldExit) {
-		doPathfinding.wait(lock, [] {return !justDidPathfinding || shouldExit; });
+		doPathfinding.wait(lock, [] {return !justDidPathfinding || customSpawnCitizens || shouldExit; });
 		if (shouldExit) break;
-		justDidPathfinding = true;
-		int spawnAmount;
-		#if CITIZEN_SPAWN_METHOD == 1
-		spawnAmount = CITIZEN_SPAWN_MAX;
-		if (CITIZEN_RANDOMIZE_SPAWN_AMT) {
-			spawnAmount = rand() % spawnAmount;
+
+		if (customSpawnCitizens) {
+			int spawned = 0;
+			for (int i = 0; i < CUSTOM_CITIZEN_SPAWN_AMT; i++) {
+				Node* end = &nodes[rand() % VALID_NODES];
+				if (closestNode != end) {
+					addCitizen(closestNode, end);
+					spawned++;
+				}
+			}
+			std::cout << "User spawned [" << CUSTOM_CITIZEN_SPAWN_AMT << "] at " << closestNode->id << std::endl;
+			customSpawnCitizens = false;
+			doCustomCitizenSpawn.notify_one();
 		}
-		#else
-		spawnAmount = TARGET_CITIZEN_COUNT - (int)citizens.activeSize();
-		#endif
-		generateCitizens(spawnAmount);
+		else {
+			justDidPathfinding = true;
+			int spawnAmount;
+			#if CITIZEN_SPAWN_METHOD == 1
+			spawnAmount = CITIZEN_SPAWN_MAX;
+			if (CITIZEN_RANDOMIZE_SPAWN_AMT) {
+				spawnAmount = rand() % spawnAmount;
+			}
+			#else
+			spawnAmount = TARGET_CITIZEN_COUNT - (int)citizens.activeSize();
+			#endif
+			generateCitizens(spawnAmount * toggleSpawn);
+		}
+
 	}
 }
 
@@ -696,29 +753,8 @@ private:
 	}
 };
 
-void debugStuckCitizens() {
-	for (int i = 0; i < citizens.size(); i++) {
-		Citizen& c = citizens[i];
-		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_THRESH) {
-			if (c.status == STATUS_AT_STOP) {
-				c.getCurrentNode()->capacity = std::min(c.getCurrentNode()->capacity - 1, 0u);
-				stuckMap[c.currentPathStr()]++;
-			}
-			c.status = STATUS_DESPAWNED_ERR;
-		}
-	}
-
-	if (!stuckMap.empty()) {
-		std::cout << "Citizens stuck at: " << std::endl;
-		for (auto const& x : stuckMap) {
-			std::cout << x.first << ": " << x.second << "\t";
-		}
-		std::cout << std::endl;
-	}
-	stuckMap.clear();
-}
-
 // TODO fix simulation hanging (must be mutex issue)
+// TODO fix citizens potentially getting stuck
 
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
@@ -752,7 +788,6 @@ void simulationThread() {
 			if (clockSize > 1) {
 				simSpeedStat.push_back(BENCHMARK_STAT_RATE / ((clockStat[clockSize-1] - clockStat[clockSize-2]) / CLOCKS_PER_SEC));
 			}
-			debugStuckCitizens();
 		}
 		
 		if (simTick % CITIZEN_SPAWN_FREQ == 0) {

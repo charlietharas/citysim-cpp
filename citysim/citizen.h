@@ -78,6 +78,18 @@ public:
 			return true;
 		}
 
+		if (timer > CITIZEN_DESPAWN_THRESH) {
+			// std::cout << "ERR despawned TIMEOUT citizen @" << int(index) << ": " << currentPathStr() << std::endl;
+			if (status == STATUS_IN_TRANSIT) {
+				subCapacity(&currentTrain->capacity);
+			}
+			if (status == STATUS_AT_STOP || status == STATUS_TRANSFER) {
+				subCapacity(&getCurrentNode()->capacity);
+			}
+			status = STATUS_DESPAWNED_ERR;
+			return true;
+		}
+
 		timer += speed;
 		float dist;
 

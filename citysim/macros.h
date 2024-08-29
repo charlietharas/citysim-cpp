@@ -16,23 +16,24 @@
 #define WINDOW_SCALE				0.5f
 #define WINDOW_X_SCALE				1.25f
 #define WINDOW_Y_SCALE				1.0f
-#define WINDOW_X_OFFSET				100
-#define WINDOW_Y_OFFSET				-150
+#define WINDOW_X_OFFSET				100.0f
+#define WINDOW_Y_OFFSET				-150.0f
 #define ZOOM_SCALE					0.1f
-#define ZOOM_MIN					0.5f
-#define ZOOM_MAX					4.0f
+#define ZOOM_MAX					0.5f
+#define ZOOM_MIN					1.5f
 #define ARROW_PAN_AMT				6.0f
 #define MAX_PAN_VEL					15.0f
 #define PAN_DECAY					0.9f
+#define TEXT_FONT_SIZE				16
 #define TRAIN_MIN_SIZE				5.0f
 #define TRAIN_MAX_SIZE				10.0f
 #define TRAIN_SIZE_DIFF				TRAIN_MAX_SIZE - TRAIN_MIN_SIZE
-#define TRAIN_N_POINTS				16
+#define TRAIN_N_POINTS				20
 #define NODE_MIN_SIZE				2.0f
 #define NODE_MAX_SIZE				8.0f
 #define NODE_SIZE_DIFF				NODE_MAX_SIZE - NODE_MIN_SIZE
 #define NODE_N_POINTS				8
-#define TEXT_REFRESH_RATE			15 // every n frames
+#define TEXT_REFRESH_RATE			6 // every n frames
 
 // Simulation size
 #define MAX_LINES					32
@@ -81,7 +82,7 @@
 #define TRANSFER_PENALTY_MULTIPLIER	1.5f
 #define STOP_PENALTY				2
 #define NODE_CAPACITY				2048u
-#define NODE_CAPACITY_WARN_THRESH	NODE_CAPACITY * 8
+#define NODE_CAPACITY_WARN_THRESH	NODE_CAPACITY * 32
 
 // Train
 #define TRAIN_SPEED					4
@@ -98,7 +99,8 @@
 #define TARGET_CITIZEN_COUNT		32000
 #define CITIZEN_RANDOMIZE_SPAWN_AMT	0
 #define N_NODES						64
-#define CITIZEN_DESPAWN_THRESH		1048576 * CITIZEN_SPEED
+#define CITIZEN_DESPAWN_WARN		131072 * CITIZEN_SPEED
+#define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 #define CITIZEN_PATH_SIZE			64
 #define PATH_CACHE_BUCKETS			96
 #define PATH_CACHE_BUCKETS_SIZE		24
