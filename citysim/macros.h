@@ -1,5 +1,7 @@
 #pragma once
 
+// constexpr is for LOSERS
+
 // Debugging
 #define AOK							0
 #define ERROR_OPENING_FILE			1
@@ -23,8 +25,8 @@
 #define TRAIN_MAX_SIZE				10.0f
 #define TRAIN_SIZE_DIFF				TRAIN_MAX_SIZE - TRAIN_MIN_SIZE
 #define TRAIN_N_POINTS				20
-#define NODE_MIN_SIZE				2.5f
-#define NODE_MAX_SIZE				7.5f
+#define NODE_MIN_SIZE				2.0f
+#define NODE_MAX_SIZE				8.0f
 #define NODE_SIZE_DIFF				NODE_MAX_SIZE - NODE_MIN_SIZE
 #define NODE_N_POINTS				10
 #define CITIZEN_SIZE				4.0f
@@ -36,6 +38,7 @@
 #define MAX_NODES					512
 #define MAX_TRAINS					1024
 #define MAX_CITIZENS				262144
+#define NUM_THREADS					16
 
 // Simulation pacing
 #define DEFAULT_SIM_SPEED			5.0f
@@ -64,6 +67,7 @@
 
 // Line
 #define LINE_PATH_SIZE				64
+#define LINE_ID_SIZE				4
 #define WALK_LINE_ID_STR			"WLK"
 
 // Node
@@ -75,27 +79,26 @@
 #define TRANSFER_PENALTY			24
 #define TRANSFER_PENALTY_MULTIPLIER	1.5f
 #define STOP_PENALTY				2
-#define NODE_CAPACITY				192
+#define NODE_CAPACITY				2048u
+#define NODE_CAPACITY_WARN_THRESH	NODE_CAPACITY * 8
 
 // Train
 #define TRAIN_SPEED					4
-#define TRAIN_CAPACITY				256
-#define TRAIN_STOP_THRESH			256 * TRAIN_SPEED
+#define TRAIN_CAPACITY				1024u
+#define TRAIN_STOP_THRESH			1024 * TRAIN_SPEED
 
 // Citizen
 #define CITIZEN_SPEED				1
 #define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED
 #define CITIZEN_SPAWN_INIT			32000
 #define CITIZEN_SPAWN_FREQ			1024
-#define CITIZEN_SPAWN_MAX			0
+#define CITIZEN_SPAWN_METHOD		0 // 1 for fixed amount per tick, otherwise match TARGET_CITIZEN_COUNT
+#define CITIZEN_SPAWN_MAX			1024
 #define TARGET_CITIZEN_COUNT		32000
 #define CITIZEN_RANDOMIZE_SPAWN_AMT	0
 #define N_NODES						64
-#define CITIZEN_DESPAWN_THRESH		131072 * CITIZEN_SPEED
+#define CITIZEN_DESPAWN_THRESH		1048576 * CITIZEN_SPEED
 #define CITIZEN_PATH_SIZE			64
 #define PATH_CACHE_BUCKETS			96
 #define PATH_CACHE_BUCKETS_SIZE		24
-#define CUSTOM_CITIZEN_SPAWN		256
-
-// Simulation pacing
-#define NUM_THREADS					3
+#define CUSTOM_CITIZEN_SPAWN_AMT	256

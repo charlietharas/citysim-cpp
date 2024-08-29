@@ -38,6 +38,8 @@ public:
     bool addNeighbor(PathWrapper* neighbor, float weight);
     bool removeNeighbor(PathWrapper* neighbor);
 
+    unsigned int numTrains();
+
     std::vector<PathWrapper> reconstructPath(std::unordered_map<Node*, PathWrapper*>& from, Node* end);
     PathCacheWrapper* getCachedPath(Node* end);
     bool findPath(Node* end, PathWrapper* destPath, char* destPathSize);

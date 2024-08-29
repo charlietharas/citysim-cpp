@@ -56,6 +56,16 @@ bool Node::removeNeighbor(PathWrapper* neighbor) {
     return false;
 }
 
+unsigned int Node::numTrains() {
+    int c = 0;
+    for (int i = 0; i < N_TRAINS; i++) {
+        if (trains[i] != nullptr) {
+            c++; // lol, haha! funny!
+        }
+    }
+    return c;
+}
+
 std::vector<PathWrapper> Node::reconstructPath(std::unordered_map<Node*, PathWrapper*>& from, Node* end) {
     std::vector<PathWrapper> path;
     while (from.find(end) != from.end()) {
@@ -68,17 +78,17 @@ std::vector<PathWrapper> Node::reconstructPath(std::unordered_map<Node*, PathWra
 }
 
 PathCacheWrapper* Node::getCachedPath(Node* end) {
-    // look up path in bidirectional cache
     PathCacheWrapper* pcw = cache.get(this, end);
     if (pcw != nullptr && pcw->size > 0) {
         return pcw;
     }
 
-    pcw = cache.get(end, this);
-    if (pcw != nullptr && pcw->size > 0) {
-        std::reverse(pcw->begin(), pcw->end());
-        return pcw;
-    }
+    // TODO make cache actually bidirectional
+    //pcw = cache.get(end, this);
+    //if (pcw != nullptr && pcw->size > 0) {
+    //    std::reverse(pcw->begin(), pcw->end());
+    //    return pcw;
+    //}
 
     return nullptr;
 }
@@ -118,15 +128,12 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             }
             size_t pathSize = path.size();
             if (pathSize > CITIZEN_PATH_SIZE) {
-                std::cout << "Encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
+                std::cout << "ERR encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
                 return false;
             }
 
             std::copy(path.begin(), path.end(), destPath);
             *destPathSize = (char)pathSize;
-            if (pathSize < CITIZEN_PATH_SIZE) {
-                destPath[pathSize] = PathWrapper();
-            }
 
             cache.put(this, end, destPath, pathSize);
 

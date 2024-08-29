@@ -19,7 +19,7 @@ public:
 	}
 
 	inline Vector2f lerp(float t, Drawable* other) {
-		if (t > 1) t = 1.0f;
+		t = std::max(0.0f, std::min(t, 1.0f));
 		return getPosition() * (1.0f - t) + (other->getPosition() * t);
 	}
 

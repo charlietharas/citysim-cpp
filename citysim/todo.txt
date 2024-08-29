@@ -1,0 +1,12 @@
+Optional additional extensions/features:
+- cleaner logging and proper debug/test modes
+- get more realistic train speeds and headways from The Weekender
+- drawing "complex lines" instead of straight lines between stations (I already have the data)
+	- making trains follow those lines
+	- giving trains basic physics (accel, decel, turning)
+		- or at least precompute this for realistic headways
+- randomized delays and train backups/queues
+- schedule switching (weekend/late-night/etc.)
+- enable citizens to travel between "custom" nodes to simulate walking into the system from non-station endpoints
+- implement shrink function for citizen vector
+- import bus routes (big)
