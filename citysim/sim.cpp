@@ -31,6 +31,9 @@ float tempSimSpeed;
 const int TARGET_FPS = 60;
 const std::chrono::microseconds FRAME_DURATION(1000000 / TARGET_FPS);
 
+const int TARGET_SIM_FPS = 1000;
+const std::chrono::microseconds SIM_TICK_DURATION(1000000 / TARGET_SIM_FPS);
+
 std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_int_distribution<int> dis;
@@ -71,6 +74,7 @@ std::condition_variable doCustomCitizenSpawn;
 // TODO "best-practice" everything into proper .h and .cpp files, clean up comments, clean up code + formatting
 // TODO use references instead of pointers for many functions
 
+// TODO optimize for speed
 void generateCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
@@ -791,7 +795,6 @@ void simulationThread() {
 	CitizenThreadPool pool(NUM_THREADS);
 
 	while (!shouldExit) {
-
 		simTick++;
 
 		#if BENCHMARK_MODE == 1
@@ -844,7 +847,8 @@ void simulationThread() {
 					});
 			}
 
-			pool.waitForCompletion();
+			// pool.waitForCompletion(); // this is actually hanging the main thread
+			// TODO figure out sim speed/thread sync stuff
 		}
 	}
 
