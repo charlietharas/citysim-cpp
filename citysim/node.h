@@ -21,14 +21,15 @@ struct PathWrapper {
 
 class Node : public Drawable {
 public:
+    char id[NODE_ID_SIZE];
     unsigned int ridership;
     unsigned int capacity;
-    double score;
-    char status;
-    char id[NODE_ID_SIZE];
     unsigned short int numerID;
+    char numNeighbors;
+    char status;
+    float score;
     struct PathWrapper neighbors[N_NEIGHBORS];
-    double weights[N_NEIGHBORS];
+    float weights[N_NEIGHBORS];
     Train* trains[N_TRAINS];
 
     Node();

@@ -1,6 +1,7 @@
 #pragma once
 
 // constexpr is for LOSERS
+// TODO use constexpr
 
 // Debugging
 #define AOK							0
@@ -9,6 +10,9 @@
 #define BENCHMARK_TICK_DURATION		50000
 #define BENCHMARK_STAT_RATE			1000
 #define BENCHMARK_RESERVE			BENCHMARK_TICK_DURATION / BENCHMARK_STAT_RATE
+#define FAIL_RATE_SAVE_RATE			500
+#define CITIZEN_DESPAWN_WARN		131072 * CITIZEN_SPEED
+#define CITIZEN_STUCK_THRESH		10
 
 // Graphics
 #define WINDOW_X					1000
@@ -38,7 +42,7 @@
 // Simulation size
 #define MAX_LINES					32
 #define MAX_NODES					512
-#define MAX_TRAINS					1024
+#define MAX_TRAINS					256
 #define MAX_CITIZENS				262144
 #define NUM_THREADS					16
 
@@ -99,7 +103,6 @@
 #define TARGET_CITIZEN_COUNT		32000
 #define CITIZEN_RANDOMIZE_SPAWN_AMT	0
 #define N_NODES						64
-#define CITIZEN_DESPAWN_WARN		131072 * CITIZEN_SPEED
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 #define CITIZEN_PATH_SIZE			64
 #define PATH_CACHE_BUCKETS			96

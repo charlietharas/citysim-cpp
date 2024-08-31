@@ -11,12 +11,10 @@ extern Line WALKING_LINE;
 
 std::mutex citizenDeletionMutex;
 
-std::map<std::string, unsigned int> stuckMap;
-
 class Citizen {
 public:
 	Citizen() {
-		clearNonPath();
+		reset();
 	}
 
 	float timer;
@@ -27,7 +25,7 @@ public:
 	char pathSize;
 	PathWrapper path[CITIZEN_PATH_SIZE];
 
-	void clearNonPath() {
+	void reset() {
 		status = STATUS_SPAWNED;
 		currentTrain = nullptr;
 		index = 0;
@@ -198,6 +196,9 @@ public:
 	inline size_t activeSize() {
 		return vec.size() - inactive.size();
 	}
+	inline size_t capacity() {
+		return vec.capacity();
+	}
 	bool add(Node* start, Node* end) {
 		if (inactive.empty()) {
 			if (size() > maxSize) {
@@ -207,7 +208,7 @@ public:
 			if (!start->findPath(end, c.path, &c.pathSize)) {
 				return false;
 			}
-			c.clearNonPath();
+			c.reset();
 			vec.push_back(c);
 		}
 		else {
@@ -217,64 +218,32 @@ public:
 				return false;
 			}
 			inactive.pop();
-			c->clearNonPath();
+			c->reset();
 		}
 		return true;
 	}
-	bool remove(int i) {
-		if (i > size() - 1 || i < 0 || size() == 0) {
-			return false;
-		}
-		vec[i].status = STATUS_DESPAWNED;
+	bool remove(int index) {
+		vec[index].status = STATUS_DESPAWNED;
 		
-		std::lock_guard<std::mutex> lock(citizenDeletionMutex);
-		inactive.push(&vec[i]);
+		{
+			std::lock_guard<std::mutex> lock(citizenDeletionMutex);
+			inactive.push(&vec[index]);
+		}
 
 		return true;
 	}
-	bool triggerCitizenUpdate(int i, float speed) {
-		if (vec[i].status == STATUS_DESPAWNED) {
+	bool triggerCitizenUpdate(int index, float speed) {
+		if (vec[index].status == STATUS_DESPAWNED) {
 			return true;
 		}
-		if (vec[i].updatePositionAlongPath(speed)) {
-			remove(i);
+		if (vec[index].updatePositionAlongPath(speed)) {
+			remove(index);
 			return true;
 		}
 		return false;
 	}
-	void profile() {
-		std::map<std::string, int> counts{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0} };
-		for (Citizen& c : vec) {
-			switch (c.status) {
-			case STATUS_DESPAWNED:
-				counts["DSPN"]++;
-				break;
-			case STATUS_SPAWNED:
-				counts["SPWN"]++;
-				break;
-			case STATUS_IN_TRANSIT:
-				counts["MOVE"]++;
-				break;
-			case STATUS_TRANSFER:
-				counts["TSFR"]++;
-				break;
-			case STATUS_AT_STOP:
-				counts["STOP"]++;
-				break;
-			case STATUS_WALK:
-				counts["WALK"]++;
-				break;
-			}
-		}
-		for (auto const& x : counts) {
-			char buffer[8];
-			std::sprintf(buffer, "%.2f", (x.second / (float)size() * 100));
-			std::cout << x.first << ": " << x.second << "(" << buffer << "%)\t";
-		}
-		std::cout << std::endl;
-	}
 private:
 	std::vector<Citizen> vec;
-	std::stack<Citizen*> inactive; // would this be faster/safer as a deque?
+	std::stack<Citizen*> inactive; // would this be faster/safer as a deque or other data structure?
 	size_t maxSize;
 };

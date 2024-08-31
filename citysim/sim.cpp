@@ -10,6 +10,7 @@
 #include <stack>
 #include <set>
 #include <future>
+#include <random>
 
 #include "macros.h"
 #include "util.h"
@@ -18,6 +19,8 @@
 #include "pcw.h"
 #include "train.h"
 #include "citizen.h"
+
+#define _SECURE_SCL 0
 
 int VALID_LINES;
 int VALID_NODES;
@@ -28,14 +31,21 @@ float tempSimSpeed;
 const int TARGET_FPS = 60;
 const std::chrono::microseconds FRAME_DURATION(1000000 / TARGET_FPS);
 
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_int_distribution<int> dis;
+
 long long unsigned int simTick;
 long unsigned int renderTick;
 
 unsigned int totalRidership;
-unsigned int handledCitizens;
 
 int toggleSpawn;
 
+unsigned int handledCitizens;
+unsigned int failedCitizens;
+unsigned int handledCitizensSinceLastDebug;
+unsigned int failedCitizensSinceLastDebug;
 std::vector<size_t> activeCitizensStat;
 std::vector<double> clockStat;
 std::vector<double> simSpeedStat;
@@ -43,7 +53,7 @@ std::vector<double> simSpeedStat;
 Line lines[MAX_LINES];
 Node nodes[MAX_NODES];
 Train trains[MAX_TRAINS];
-CitizenVector citizens(MAX_CITIZENS / 4, MAX_CITIZENS);
+CitizenVector citizens(MAX_CITIZENS / 2, MAX_CITIZENS);
 
 Node* closestNode;
 
@@ -62,92 +72,127 @@ std::condition_variable doPathfinding;
 std::condition_variable doCustomCitizenSpawn;
 
 // TODO "best-practice" everything into proper .h and .cpp files, clean up comments, clean up code + formatting
-
-bool addCitizen(Node* startNode, Node* endNode) {
-	if (citizens.add(startNode, endNode)) {
-		handledCitizens++;
-		return true;
-	}
-	return false;
-}
+// TODO use references instead of pointers for many functions
 
 void generateCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
 	// int i = lastCitizenSpawnedIndex;
 	while (spawnedCount < spawnAmount) {
-		int startRidership = rand() % totalRidership;
+		int startRidership = dis(gen);
 		int endRidership;
 		int startNode;
 		int endNode;
+		int i;
 		do {
 			startNode = 0;
 			endNode = 0;
-			endRidership = rand() % totalRidership;
-			// this calculation could technically be optimized, but what am I, a computer science student?
-			int i = 0;
+			endRidership = dis(gen);
+			// TODO optimize calculation
+			i = 0;
 			while (i < startRidership) {
 				i += nodes[startNode++].ridership;
 			}
+			startNode = std::min(startNode, VALID_NODES-1);
 			i = 0;
 			while (i < endRidership) {
 				i += nodes[endNode++].ridership;
 			}
+			endNode = std::min(endNode, VALID_NODES-1);
 		} while (endNode == startNode);
 
 		// add citizen
-		if (addCitizen(&nodes[startNode], &nodes[endNode])) {
+		if (citizens.add(&nodes[startNode], &nodes[endNode])) {
+			handledCitizens++;
+			handledCitizensSinceLastDebug++;
 			spawnedCount++;
+		}
+		else {
+			failedCitizens++;
+			failedCitizensSinceLastDebug++;
 		}
 	}
 }
 
-void debugStuckCitizens() {
+void debugReport() {
+	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0} };
+	for (int i = 0; i < citizens.size(); i++) {
+		Citizen& c = citizens[i];
+		switch (c.status) {
+		case STATUS_DESPAWNED:
+			statusMap["DSPN"]++;
+			break;
+		case STATUS_SPAWNED:
+			statusMap["SPWN"]++;
+			break;
+		case STATUS_IN_TRANSIT:
+			statusMap["MOVE"]++;
+			break;
+		case STATUS_TRANSFER:
+			statusMap["TSFR"]++;
+			break;
+		case STATUS_AT_STOP:
+			statusMap["STOP"]++;
+			break;
+		case STATUS_WALK:
+			statusMap["WALK"]++;
+			break;
+		}
+	}
+	for (auto const& x : statusMap) {
+		char buffer[8];
+		std::sprintf(buffer, "%.2f", (x.second / (float) citizens.size() * 100));
+		std::cout << x.first << ": " << x.second << "(" << buffer << "%)\t";
+	}
+	std::cout << std::endl;
+
+	std::map<std::string, unsigned int> stuckMap;
 	for (int i = 0; i < citizens.size(); i++) {
 		Citizen& c = citizens[i];
 		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN) {
-			if (c.status == STATUS_AT_STOP) {
-				c.getCurrentNode()->capacity = std::min(c.getCurrentNode()->capacity - 1, 0u);
-				stuckMap[c.currentPathStr()]++;
-			}
-			c.status = STATUS_DESPAWNED_ERR;
+			stuckMap[c.currentPathStr()]++;
 		}
 	}
 
 	if (!stuckMap.empty()) {
-		std::cout << "Citizens stuck at: " << std::endl;
+		std::cout << "Citizens getting stuck at: " << std::endl;
 		for (auto const& x : stuckMap) {
-			std::cout << x.first << ": " << x.second << "\t";
+			if (x.second >> CITIZEN_STUCK_THRESH) {
+				std::cout << x.first << " ( " << x.second << ")\t";
+			}
 		}
 		std::cout << std::endl;
 	}
-	stuckMap.clear();
+
+	std::cout << "Path gen success rate: " << (float) handledCitizensSinceLastDebug / (handledCitizensSinceLastDebug + failedCitizensSinceLastDebug) << " (ovr: " << (float) handledCitizens / (handledCitizens + failedCitizens) << ")" << std::endl;
+	handledCitizensSinceLastDebug = 0;
+	failedCitizensSinceLastDebug = 0;
 }
 
 int init() {
-	// allocate and initialize global arrays
 	for (int i = 0; i < MAX_LINES; i++) {
 		lines[i] = Line();
 	}
-	std::cout << "Initialized lines" << std::endl;
-
-	float nodesX[MAX_NODES]; // utility arrays for Node position normalization
-	float nodesY[MAX_NODES];
 	for (int i = 0; i < MAX_NODES; i++) {
 		nodes[i] = Node();
-		nodesX[i] = 0;
-		nodesY[i] = 0;
 	}
-	std::cout << "Initialized nodes" << std::endl;
-
 	for (int i = 0; i < MAX_TRAINS; i++) {
 		trains[i] = Train();
 	}
-	std::cout << "Initialized trains" << std::endl;
+
+	// utility vectors for Node position normalization
+	float* nodesX = new float[MAX_NODES];
+	float* nodesY = new float[MAX_NODES];
+	for (int i = 0; i < MAX_NODES; i++) {
+		nodesX[i] = 0;
+		nodesY[i] = 0;
+	}
+
+	std::cout << "Allocated memory for non-citizen global arrays" << std::endl;
 
 	// read files
 	int row = 0;
-	std::string line;
+	std::string fileLine;
 
 	// parse [id (name), color, path] to generate Lines
 	std::ifstream linesCSV("lines_stations.csv");
@@ -155,30 +200,34 @@ int init() {
 		std::cerr << "Error opening lines_stations.csv" << std::endl;
 		return ERROR_OPENING_FILE;
 	}
-	std::cout << "Successfully opened lines_stations.csv" << std::endl;
 
-	while (std::getline(linesCSV, line)) {
-		std::stringstream lineStream(line);
+	std::cout << "Reading lines_stations.csv" << std::endl;
+
+	while (std::getline(linesCSV, fileLine)) {
+		std::stringstream lineStream(fileLine);
 		std::string cell;
-		lines[row].size |= STATUS_SPAWNED;
 		
 		int col = 0;
 		while (std::getline(lineStream, cell, ',')) {
+			Line& line = lines[row];
+
 			if (col == 0) {
 				// line id/name (e.g. A, A_L, F)
-				std::strcpy(lines[row].id, cell.c_str());
+				std::strcpy(line.id, cell.c_str());
 			} else if (col == 1) {
 				// color (type sf::Color)
-				colorConvert(&lines[row].color, cell);
+				colorConvert(&line.color, cell);
 			} else {
-				// update Node in path
-				lines[row].path[col - 2] = &nodes[std::stoi(cell)];
+				// add Node ref to path (before Node initialization)
+				line.path[col - 2] = &nodes[std::stoi(cell)];
 			}
 			col++;
 		}
 		row++;
 	}
+
 	VALID_LINES = row;
+	std::cout << "Processed " << VALID_LINES << " lines" << std::endl;
 
 	// parse [id (name), x, y, ridership] to generate Node objects
 	std::ifstream stationsCSV("stations_data.csv");
@@ -186,46 +235,52 @@ int init() {
 		std::cerr << "Error opening stations_data.csv" << std::endl;
 		return ERROR_OPENING_FILE;
 	}
-	std::cout << "Successfully opened stations_data.csv" << std::endl;
+
+	std::cout << "Reading stations_data.csv" << std::endl;
 
 	row = 0;
 	totalRidership = 0;
-	while (std::getline(stationsCSV, line)) {
-		std::stringstream lineStream(line);
+	while (std::getline(stationsCSV, fileLine)) {
+		std::stringstream lineStream(fileLine);
 		std::string cell;
-		nodes[row].status = STATUS_EXISTS;
+		Node& node = nodes[row];
+		node.status = STATUS_EXISTS;
 
 		int col = 0;
 		while (std::getline(lineStream, cell, ',')) {
 			switch (col) {
 			case 0: // numerical uid
-				nodes[row].numerID = std::stoi(cell);
+				node.numerID = std::stoi(cell);
 				break;
 			case 1: // station id/name (e.g. Astor Pl, 23rd St)
-				std::strcpy(nodes[row].id, cell.c_str());
+				std::strcpy(node.id, cell.c_str());
 				break;
 			case 2: // x coordinate
-				nodesX[row] = std::stof(cell);
+				nodesX[row] = (std::stof(cell));
 				break;
 			case 3: // y coordinate
-				nodesY[row] = std::stof(cell);
+				nodesY[row] = (std::stof(cell));
 				break;
 			case 4: // can ignore lines value
 				break;
 			case 5: // ridership (daily, 2019)
-				nodes[row].ridership = std::stoi(cell);
-				totalRidership += nodes[row].ridership;
+				node.ridership = std::stoi(cell);
+				totalRidership += node.ridership;
 				break;
 			default:
 				break;
 			}
 			col++;
 		}
-		nodes[row] = nodes[row];
 		row++;
 	}
+
 	VALID_NODES = row;
-	std::cout << "Parsed stations data (total system ridership: " << totalRidership << ")" << std::endl;
+	std::cout << "Parsed " << VALID_NODES << " nodes (stations)" << std::endl;
+	std::cout << "Total system ridership: " << totalRidership << std::endl;
+
+	// update randint generator for citizen generation
+	dis.param(std::uniform_int_distribution<int>::param_type(0, totalRidership));
 
 	// normalize Node position data to screen boundaries
 	float minNodeX = nodesX[0]; float maxNodeX = nodesX[0];
@@ -244,6 +299,7 @@ int init() {
 			WINDOW_Y_OFFSET + WINDOW_Y - WINDOW_SCALE * WINDOW_Y_SCALE * WINDOW_Y * (nodesY[i] - minNodeY) / minMaxDiffY
 		));
 	}
+
 	std::cout << "Normalized node positions" << std::endl;
 
 	// add Node transfer neighbors
@@ -265,70 +321,68 @@ int init() {
 			}
 		}
 	}
-	std::cout << "Generated node neighbors" << std::endl;
+
+	std::cout << "Generated " << transferNeighbors << " walking transfer neighbors" << std::endl;
 
 	// various preprocessing steps, generate Train objects
-	VALID_TRAINS = 0;
 	int lineNeighbors = 0;
 
 	for (int i = 0; i < VALID_LINES; i++) {
 		int j = 0;
-		Line* line = &lines[i];
+		Line& line = lines[i];
 
 		// update Node colors for each Line
-		while (line->path[j] != NULL && line->path[j]->status == STATUS_EXISTS) {
+		while (j < LINE_PATH_SIZE && line.path[j] != nullptr && line.path[j]->status == STATUS_EXISTS) {
 			if (j > 0) {
-				line->dist[j - 1] = line->path[j]->dist(line->path[j - 1]) * 128;
-				struct PathWrapper neighborWrapper1 = { line->path[j], line };
-				struct PathWrapper neighborWrapper2 = { line->path[j - 1], line };
-				float dist = line->path[j]->dist(line->path[j - 1]) * TRANSFER_PENALTY_MULTIPLIER;
-				line->path[j]->addNeighbor(&neighborWrapper2, dist);
-				line->path[j - 1]->addNeighbor(&neighborWrapper1, dist);
+				line.dist[j - 1] = line.path[j]->dist(line.path[j - 1]) * 128;
+				struct PathWrapper neighborWrapper1 = { line.path[j], &line };
+				struct PathWrapper neighborWrapper2 = { line.path[j - 1], &line };
+				float dist = line.path[j]->dist(line.path[j - 1]) * TRANSFER_PENALTY_MULTIPLIER;
+				line.path[j]->addNeighbor(&neighborWrapper2, dist);
+				line.path[j - 1]->addNeighbor(&neighborWrapper1, dist);
 				lineNeighbors++;
 			}
-			line->path[j]->setFillColor(sf::Color(line->color.r, line->color.g, line->color.b));
+			line.path[j]->setFillColor(line.color);
 			j++;
 		}
 
 		// generate distances between Nodes on each Line
-		line->dist[j - 1] = line->dist[j-2];
+		line.dist[j - 1] = line.dist[j-2];
 
 		// update Line size (length)
-		line->size = j;
+		line.size = j;
 
 		// generate Train objects
 		for (int k = 0; k < j; k+= DEFAULT_TRAIN_STOP_SPACING) {
 			// generate 2 Trains (one going backward, one forward) except if at first/last stop
 			int repeat = (k == 0 || k == j - 1) ? 1 : 2;
 			for (int l = 0; l < repeat; l++) {
-				Train* train = &trains[VALID_TRAINS];
-				train->setPosition(line->path[k]->getPosition());
-				train->line = line;
-				train->index = k;
-				train->status = STATUS_IN_TRANSIT;
-				train->statusForward = (l == 1) ? STATUS_BACK : (k == j - 1) ? STATUS_BACK : STATUS_FORWARD;
-				train->setFillColor(line->color);
-				VALID_TRAINS++;
+				Train& train = trains[VALID_TRAINS++];
+				train.setPosition(line.path[k]->getPosition());
+				train.line = &line;
+				train.index = k;
+				train.status = STATUS_IN_TRANSIT;
+				train.statusForward = (l == 1) ? STATUS_BACK : (k == j - 1) ? STATUS_BACK : STATUS_FORWARD;
+				train.setFillColor(line.color);
 			}
 		}
 	}
-	std::cout << "Processed nodes and generated initial trains" << std::endl;
 
-	simTick = 0;
-	renderTick = 0;
-	handledCitizens = 0;
+	std::cout << "Processed remaining node data" << std::endl;
+	std::cout << "Generated " << lineNeighbors << " neighbor pairs (total " << transferNeighbors + lineNeighbors << ", " << transferNeighbors << " walk/" << lineNeighbors << " line)" << std::endl;
+	std::cout << "Generated " << VALID_TRAINS << " trains" << std::endl;
+
+	// enable continuous citizen spawning by default
 	toggleSpawn = 1;
 
 	// generate initial batch of citizens
 	generateCitizens(CITIZEN_SPAWN_INIT);
+	std::cout << "Generated " << CITIZEN_SPAWN_INIT << " initial citizens" << std::endl;
 
-	std::cout << std::endl << "INIT DONE!" << std::endl;
+	delete[] nodesX;
+	delete[] nodesY;
 
-	std::cout << "Loaded " << VALID_NODES << " valid nodes on " << VALID_LINES << " lines" << std::endl;
-	std::cout << "Initialized " << VALID_TRAINS << " trains" << std::endl;
-	std::cout << "Generated " << transferNeighbors + lineNeighbors << " neighbor pairs (" << transferNeighbors << " transfer/" << lineNeighbors << " line)" << std::endl;
-	std::cout << "Generated " << CITIZEN_SPAWN_INIT << " initial citizens" << std::endl << std::endl;
-
+	std::cout << "INIT DONE!" << std::endl << std::endl;
 	return AOK;
 }
 
@@ -557,8 +611,7 @@ void renderingThread() {
 				// press semicolon to output citizen vector profile for debugging
 				if (event.key.code == sf::Keyboard::SemiColon) {
 					std::lock_guard<std::mutex> lock(citizensMutex);
-					citizens.profile();
-					debugStuckCitizens();
+					debugReport();
 				}
 				// press O to toggle "passive" citizen spawning
 				if (event.key.code == sf::Keyboard::O) {
@@ -663,8 +716,8 @@ void pathfindingThread() {
 			int spawned = 0;
 			for (int i = 0; i < CUSTOM_CITIZEN_SPAWN_AMT; i++) {
 				Node* end = &nodes[rand() % VALID_NODES];
-				if (closestNode != end) {
-					addCitizen(closestNode, end);
+				if (closestNode != end && citizens.add(closestNode, end)) {
+					handledCitizens++;
 					spawned++;
 				}
 			}
@@ -753,9 +806,6 @@ private:
 	}
 };
 
-// TODO fix simulation hanging (must be mutex issue)
-// TODO fix citizens potentially getting stuck
-
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
 	double timeElapsed = double(clock());
@@ -822,10 +872,15 @@ void simulationThread() {
 			pool.waitForCompletion();
 		}
 	}
+
+	std::cout << "SIM DONE!" << std::endl;
+	std::cout << "Simulation ticks elapsed: " << simTick << std::endl;
 	std::cout << "Simulation time elapsed: " << (double(clock()) - timeElapsed) / CLOCKS_PER_SEC << "s" << std::endl;
-	size_t averageActiveCitizens = 0; for (size_t i : activeCitizensStat) averageActiveCitizens += i;
+	size_t averageActiveCitizens = 0; 
+	for (size_t i : activeCitizensStat) averageActiveCitizens += i;
 	averageActiveCitizens /= activeCitizensStat.size();
 	std::cout << "Averaged " << averageActiveCitizens << " citizen agents" << std::endl;
+	std::cout << "Handled total " << handledCitizens << " citizen agents" << std::endl;
 
 	doPathfinding.notify_one();
 }
@@ -836,7 +891,7 @@ int main()
 	double progStartTime = double(clock());
 	int initStatus = init();
 	if (initStatus == AOK) {
-		std::cout << "Simulation initialized successfully (" << (double(clock()) - progStartTime) / CLOCKS_PER_SEC << "s)" << std::endl;
+		std::cout << "Simulation initialized successfully (" << (double(clock()) - progStartTime) / CLOCKS_PER_SEC << "s)" << std::endl << std::endl;
 	} else {
 		return initStatus;
 	}

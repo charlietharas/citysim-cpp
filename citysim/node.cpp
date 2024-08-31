@@ -6,6 +6,7 @@
 PathCache cache = PathCache(PATH_CACHE_BUCKETS, PATH_CACHE_BUCKETS_SIZE);
 
 Node::Node() : Drawable(NODE_MIN_SIZE, NODE_N_POINTS) {
+    numNeighbors = 0;
     for (int i = 0; i < N_NEIGHBORS; i++) {
         neighbors[i] = PathWrapper();
     }
@@ -40,6 +41,7 @@ bool Node::addNeighbor(PathWrapper* neighbor, float weight) {
         if (neighbors[i].node == nullptr) {
             neighbors[i] = *neighbor;
             weights[i] = weight;
+            numNeighbors++;
             return true;
         }
     }
@@ -50,6 +52,7 @@ bool Node::removeNeighbor(PathWrapper* neighbor) {
     for (int i = 0; i < N_NEIGHBORS; i++) {
         if (neighbors[i].node == neighbor->node && neighbors[i].line == neighbor->line) {
             neighbors[i] = PathWrapper({ nullptr, nullptr });
+            numNeighbors--;
             return true;
         }
     }
@@ -102,7 +105,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
     std::unordered_set<Node*> queueSet;
     std::unordered_set<Node*> visited;
     std::unordered_map<Node*, PathWrapper*> from;
-    std::unordered_map<Node*, double> score;
+    std::unordered_map<Node*, float> score;
 
     score[this] = 0.0f;
     this->score = score[this] + this->dist(end);
@@ -138,14 +141,14 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
         visited.insert(current);
 
-        for (int i = 0; i < N_NEIGHBORS; ++i) {
+        for (int i = 0; i < current->numNeighbors; ++i) {
             Node* neighbor = current->neighbors[i].node;
             if (neighbor == nullptr) continue;
             Line* line = current->neighbors[i].line;
 
             if (visited.find(neighbor) != visited.end()) continue;
 
-            double aggregateScore = score[current] + current->weights[i];
+            float aggregateScore = score[current] + current->weights[i];
 
             // anti-transfer heuristic
             if (from.find(neighbor) != from.end() && from[neighbor]->line != line) {
