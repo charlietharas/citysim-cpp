@@ -38,6 +38,9 @@ bool Node::removeTrain(Train* train) {
 
 bool Node::addNeighbor(PathWrapper* neighbor, float weight) {
     for (int i = 0; i < N_NEIGHBORS; i++) {
+        if (neighbors[i].node == neighbor->node) {
+            break;
+        }
         if (neighbors[i].node == nullptr) {
             neighbors[i] = *neighbor;
             weights[i] = weight;
@@ -51,7 +54,8 @@ bool Node::addNeighbor(PathWrapper* neighbor, float weight) {
 bool Node::removeNeighbor(PathWrapper* neighbor) {
     for (int i = 0; i < N_NEIGHBORS; i++) {
         if (neighbors[i].node == neighbor->node && neighbors[i].line == neighbor->line) {
-            neighbors[i] = PathWrapper({ nullptr, nullptr });
+            neighbors[i].node = nullptr;
+            neighbors[i].line = nullptr;
             numNeighbors--;
             return true;
         }

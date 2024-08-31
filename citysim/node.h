@@ -28,7 +28,7 @@ public:
     char numNeighbors;
     char status;
     float score;
-    struct PathWrapper neighbors[N_NEIGHBORS];
+    PathWrapper neighbors[N_NEIGHBORS];
     float weights[N_NEIGHBORS];
     Train* trains[N_TRAINS];
 

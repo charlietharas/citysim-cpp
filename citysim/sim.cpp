@@ -43,9 +43,6 @@ unsigned int totalRidership;
 int toggleSpawn;
 
 unsigned int handledCitizens;
-unsigned int failedCitizens;
-unsigned int handledCitizensSinceLastDebug;
-unsigned int failedCitizensSinceLastDebug;
 std::vector<size_t> activeCitizensStat;
 std::vector<double> clockStat;
 std::vector<double> simSpeedStat;
@@ -104,12 +101,10 @@ void generateCitizens(int spawnAmount) {
 		// add citizen
 		if (citizens.add(&nodes[startNode], &nodes[endNode])) {
 			handledCitizens++;
-			handledCitizensSinceLastDebug++;
 			spawnedCount++;
 		}
 		else {
-			failedCitizens++;
-			failedCitizensSinceLastDebug++;
+			std::cout << "ERR: failed to find path between " << nodes[startNode].id << ", " << nodes[endNode].id << std::endl;
 		}
 	}
 }
@@ -163,32 +158,12 @@ void debugReport() {
 		}
 		std::cout << std::endl;
 	}
-
-	std::cout << "Path gen success rate: " << (float) handledCitizensSinceLastDebug / (handledCitizensSinceLastDebug + failedCitizensSinceLastDebug) << " (ovr: " << (float) handledCitizens / (handledCitizens + failedCitizens) << ")" << std::endl;
-	handledCitizensSinceLastDebug = 0;
-	failedCitizensSinceLastDebug = 0;
 }
 
 int init() {
-	for (int i = 0; i < MAX_LINES; i++) {
-		lines[i] = Line();
-	}
-	for (int i = 0; i < MAX_NODES; i++) {
-		nodes[i] = Node();
-	}
-	for (int i = 0; i < MAX_TRAINS; i++) {
-		trains[i] = Train();
-	}
-
 	// utility vectors for Node position normalization
 	float* nodesX = new float[MAX_NODES];
 	float* nodesY = new float[MAX_NODES];
-	for (int i = 0; i < MAX_NODES; i++) {
-		nodesX[i] = 0;
-		nodesY[i] = 0;
-	}
-
-	std::cout << "Allocated memory for non-citizen global arrays" << std::endl;
 
 	// read files
 	int row = 0;
@@ -917,8 +892,6 @@ int main()
 	if (pathThread.joinable()) {
 		pathThread.join();
 	}
-
-	std::cout << std::endl << "Done!" << std::endl;
 
 	return 0;
 }

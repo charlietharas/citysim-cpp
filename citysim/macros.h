@@ -81,7 +81,7 @@
 #define N_NEIGHBORS					24
 #define N_TRAINS					8
 #define TRANSFER_WEIGHT				16
-#define TRANSFER_MAX_DIST			2
+#define TRANSFER_MAX_DIST			8
 #define TRANSFER_PENALTY			48
 #define TRANSFER_PENALTY_MULTIPLIER	1.5f
 #define STOP_PENALTY				2
