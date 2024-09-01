@@ -13,17 +13,12 @@
 #include <random>
 
 #include "macros.h"
-#include "util.h"
 #include "line.h"
 #include "node.h"
-#include "pcw.h"
+#include "pathcache.h"
 #include "train.h"
 #include "citizen.h"
-
-// render fps control
-float SIM_SPEED;
-const int TARGET_FPS = 60;
-const std::chrono::microseconds FRAME_DURATION(1000000 / TARGET_FPS);
+#include "util.h"
 
 // weighted-random node selection
 unsigned int totalRidership;
@@ -32,6 +27,7 @@ std::mt19937 gen(rd());
 std::uniform_int_distribution<int> dis;
 
 // simulation controls
+float SIM_SPEED;
 bool toggleSpawn;
 bool simRunning;
 long unsigned int simTick;
@@ -78,7 +74,7 @@ Line WALKING_LINE;
 // TODO "best-practice" everything into proper .h and .cpp files, clean up comments, clean up code + formatting
 // TODO use references instead of pointers for many functions
 
-// TODO optimize for speed (likely in A*?)
+// TODO optimize for speed
 void generateCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
@@ -282,7 +278,7 @@ int init() {
 				std::strcpy(line.id, cell.c_str());
 			} else if (col == 1) {
 				// color (type sf::Color)
-				colorConvert(&line.color, cell);
+				util::colorConvert(&line.color, cell);
 			} else {
 				// add Node ref to path (before Node initialization)
 				line.path[col - 2] = &nodes[std::stoi(cell)];
@@ -488,6 +484,8 @@ void renderingThread() {
 	sf::ContextSettings settings;
 	settings.antialiasingLevel = ANTIALIAS_LEVEL;
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "CitySim", sf::Style::Titlebar | sf::Style::Close, settings);
+	window.setFramerateLimit(TARGET_FPS);
+	window.requestFocus();
 
 	// fps limiter
 	sf::Clock clock;
@@ -507,6 +505,7 @@ void renderingThread() {
 
 	// draw handlers and utilities
 	sf::View view(Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2), Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+	sf::View textView(view);
 	Vector2f panOffset(0, 0);
 	Vector2f panVelocity(0, 0);
 	float simZoom = 1.0f;
@@ -753,10 +752,7 @@ void renderingThread() {
 				speedString = "Simulation paused (tick " + std::to_string(simTick) + ")\n";
 			}
 			text.setString(std::to_string(c) + " active citizens\n" + speedString + nearestNode->id + " [" + std::to_string(nearestNode->capacity) + "]");
-
-			// TODO normalize text pos
 		}
-		window.draw(text);
 
 		if (drawTrains) {
 			std::lock_guard<std::mutex> trainLock(trainsMutex);
@@ -804,14 +800,10 @@ void renderingThread() {
 			}
 		}
 
-		window.display();
+		window.setView(textView);
+		window.draw(text);
 
-		// frame rate control (scuffed vsync)
-		sf::Time frameTime = clock.getElapsedTime() - frameStart;
-		sf::Int64 sleepTime = FRAME_DURATION.count() - frameTime.asMicroseconds();
-		if (sleepTime > 0) {
-			sf::sleep(sf::microseconds(sleepTime));
-		}
+		window.display();
 	}
 }
 

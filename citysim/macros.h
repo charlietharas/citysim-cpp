@@ -16,6 +16,7 @@
 #define ARROW_PAN_AMT				6.0f
 #define MAX_PAN_VELOCITY			15.0f // technically not velocity, measured in x/y direction
 #define PAN_DECAY					0.9f // controls smoothness/gliding of arrow key pan
+#define TARGET_FPS					60
 #define ANTIALIAS_LEVEL				4
 #define TEXT_FONT_SIZE				16
 #define TRAIN_MIN_SIZE				5.0f
@@ -26,7 +27,7 @@
 #define NODE_MAX_SIZE				8.0f
 #define NODE_SIZE_DIFF				NODE_MAX_SIZE - NODE_MIN_SIZE
 #define NODE_N_POINTS				8
-#define TEXT_REFRESH_RATE			6 // every n frames
+#define TEXT_REFRESH_RATE			10 // every n frames
 
 // Simulation size
 #define MAX_LINES					32
@@ -85,7 +86,7 @@
 // Citizen
 #define CITIZEN_SPEED				1.0f
 #define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED // how long citizens walk through stations before waiting for a train
-#define CITIZEN_PATH_SIZE			64 // high effect on memory consumption
+#define CITIZEN_PATH_SIZE			63 // high effect on memory consumption
 #define CITIZEN_SPAWN_INIT			32000 // initial amount of citizens to spawn before simulation start
 #define CITIZEN_SPAWN_FREQ			1024 // spawn citizens every n simulation ticks
 #define CITIZEN_SPAWN_METHOD		0 // 0 to match target amount, 1 for fixed amount

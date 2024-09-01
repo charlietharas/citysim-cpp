@@ -5,15 +5,15 @@
 struct PathCacheWrapper {
     Node* startNode;
     Node* endNode;
-    PathWrapper path[64];
-    size_t size;
+    int size;
     int lru;
+    PathWrapper path[CITIZEN_PATH_SIZE];
     PathCacheWrapper();
     PathCacheWrapper(Node* st, Node* e, PathWrapper* p, size_t s);
     void set(Node* st, Node* e, PathWrapper* p, size_t s, int l, bool reversePath);
     PathWrapper* begin();
     PathWrapper* end();
-    size_t last();
+    int last();
 };
 
 class PathCache {

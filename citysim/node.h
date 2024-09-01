@@ -6,7 +6,6 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-
 #include "macros.h"
 #include "drawable.h"
 #include "line.h"
@@ -40,13 +39,31 @@ public:
     bool addNeighbor(PathWrapper& neighbor, float weight);
     bool removeNeighbor(PathWrapper& neighbor);
 
-    void setGridPos(char x, char y);
-    char gridX();
-    char gridY();
-    char lowerGridX();
-    char upperGridX();
-    char lowerGridY();
-    char upperGridY();
+    inline void setGridPos(char x, char y) {
+        gridPos = x << 8 | y;
+    }
+    inline char gridX() {
+        return gridPos >> 8;
+    }
+    inline char gridY() {
+        return gridPos & 0x0F;
+    }
+    inline char lowerGridX() {
+        char x = gridX();
+        return x > 0 ? x - 1 : x;
+    }
+    inline char upperGridX() {
+        char x = gridX();
+        return x < NODE_GRID_ROWS - 1 ? x + 1 : x;
+    }
+    inline char lowerGridY() {
+        char y = gridY();
+        return y > 0 ? y - 1 : y;
+    }
+    inline char upperGridY() {
+        char y = gridY();
+        return y < NODE_GRID_COLS - 1 ? y + 1 : y;
+    }
     unsigned int numTrains();
 
     std::vector<PathWrapper> reconstructPath(std::unordered_map<Node*, PathWrapper*>& from, Node* end);

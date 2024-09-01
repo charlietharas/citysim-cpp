@@ -1,7 +1,6 @@
 #include <iostream>
-
 #include "node.h"
-#include "pcw.h"
+#include "pathcache.h"
 
 PathCache cache = PathCache(PATH_CACHE_BUCKETS, PATH_CACHE_BUCKETS_SIZE);
 
@@ -61,38 +60,6 @@ bool Node::removeNeighbor(PathWrapper& neighbor) {
         }
     }
     return false;
-}
-
- void Node::setGridPos(char x, char y) {
-    gridPos = x << 8 | y;
-}
-
- char Node::gridX() {
-    return gridPos >> 8;
-}
-
- char Node::gridY() {
-    return gridPos & 0x0F;
-}
-
- char Node::lowerGridX() {
-    char x = gridX();
-    return x > 0 ? x - 1 : x;
-}
-
- char Node::upperGridX() {
-    char x = gridX();
-    return x < NODE_GRID_ROWS-1 ? x + 1 : x;
-}
-
- char Node::lowerGridY() {
-    char y = gridY();
-    return y > 0 ? y - 1 : y;
-}
-
- char Node::upperGridY() {
-    char y = gridY();
-    return y < NODE_GRID_COLS-1 ? y + 1 : y;
 }
 
 unsigned int Node::numTrains() {
@@ -169,7 +136,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
             cache.put(this, end, destPath, pathSize, false);
             cache.put(end, this, destPath, pathSize, true); 
-            // yes, this could be made more (~twice as) memory efficient by reversing on cache get(), but this code was much more annoying to write
+            // yes, this could be made more (~twice as) memory efficient by reversing on cache get(), but that code was much more annoying to write
             // oh well!
 
             return true;

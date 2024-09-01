@@ -1,9 +1,10 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+
 class Node;
 
-class Line {
+struct Line {
 public:
 	char size;
 	char id[LINE_ID_SIZE];

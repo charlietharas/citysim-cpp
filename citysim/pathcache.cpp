@@ -1,4 +1,4 @@
-#include "pcw.h"
+#include "pathcache.h"
 
 PathCacheWrapper::PathCacheWrapper() {
     set(nullptr, nullptr, nullptr, 0, -1, false);
@@ -36,7 +36,7 @@ PathWrapper* PathCacheWrapper::end() {
     return &path[last()];
 }
 
-size_t PathCacheWrapper::last() {
+int PathCacheWrapper::last() {
     return size - 1;
 }
 
