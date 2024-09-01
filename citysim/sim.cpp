@@ -35,8 +35,6 @@ long unsigned int renderTick;
 
 // statistics
 unsigned int handledCitizens;
-double trainHandleTime;
-double citizenHandleTime;
 std::vector<size_t> activeCitizensStat;
 std::vector<double> clockStat;
 std::vector<double> simSpeedStat;
@@ -71,8 +69,8 @@ std::condition_variable doSimulation;
 Node* nearestNode;
 Line WALKING_LINE;
 
-// TODO optimize for speed (start by caching subpaths)
-void generateCitizens(int spawnAmount) {
+// TODO optimize for speed
+void generateRandomCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
 	while (spawnedCount < spawnAmount) {
@@ -441,7 +439,7 @@ int init() {
 
 		// generate train objects
 		std::string idStr = line.id;
-		// TODO custom and accurate train counts, speeds
+		// TODO custom and accurate train counts, speeds (https://new.mta.info/schedules, The Weekender)
 		int spacing = idStr.find("A_") == std::string::npos ? DEFAULT_TRAIN_STOP_SPACING / 2 : DEFAULT_TRAIN_STOP_SPACING; // avoid excessive generation for the A train
 		for (int k = 0; k < j; k+= DEFAULT_TRAIN_STOP_SPACING) {
 			// generate 2 trains (one going backward, one forward) except if at first/last stop
@@ -466,7 +464,7 @@ int init() {
 	toggleSpawn = true;
 
 	// generate initial batch of citizens
-	generateCitizens(CITIZEN_SPAWN_INIT);
+	generateRandomCitizens(CITIZEN_SPAWN_INIT);
 	std::cout << "Generated " << CITIZEN_SPAWN_INIT << " initial citizens" << std::endl;
 
 	delete[] nodesX;
@@ -830,15 +828,16 @@ void pathfindingThread() {
 
 			#if CITIZEN_SPAWN_METHOD == 1
 			// spawn a constant amount of citizens CITIZEN_SPAWN_AMT
-			generateCitizens(CITIZEN_SPAWN_AMT);
+			generateRandomCitizens(CITIZEN_SPAWN_AMT);
 			#else
 			// spawn citizens up to a target amount TARGET_CITIZEN_COUNT
-			generateCitizens(TARGET_CITIZEN_COUNT - (int)citizens.activeSize());
+			generateRandomCitizens(TARGET_CITIZEN_COUNT - (int)citizens.activeSize());
 			#endif
 		}
 	}
 }
 
+// TODO debug citizens getting stuck at S_S stops
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
 	simRunning = false;
@@ -886,7 +885,6 @@ void simulationThread() {
 		}
 
 		// run simulation on trains and citizens
-		double handleClock = (double)clock();
 		{
 			std::lock_guard<std::mutex> lock(trainsMutex);
 			float trainSpeed = TRAIN_SPEED * SIM_SPEED;
@@ -894,9 +892,7 @@ void simulationThread() {
 				trains[i].updatePositionAlongLine(trainSpeed);
 			}
 		}
-		trainHandleTime = (double)clock() - handleClock;
 
-		handleClock = (double)clock();
 		{
 			std::lock_guard<std::mutex> lock(citizensMutex);
 			float citizenSpeed = CITIZEN_SPEED * SIM_SPEED;
@@ -914,7 +910,6 @@ void simulationThread() {
 
 			pool.waitForCompletion();
 		}
-		citizenHandleTime = (double)clock() - handleClock;
 	}
 
 	std::cout << "SIM DONE!" << std::endl;

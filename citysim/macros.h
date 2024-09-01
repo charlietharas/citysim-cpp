@@ -86,7 +86,7 @@
 // Citizen
 #define CITIZEN_SPEED				1.0f
 #define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED // how long citizens walk through stations before waiting for a train
-#define CITIZEN_PATH_SIZE			63 // high effect on memory consumption
+#define CITIZEN_PATH_SIZE			64 // high effect on memory consumption and simulation accuracy
 #define CITIZEN_SPAWN_INIT			32000 // initial amount of citizens to spawn before simulation start
 #define CITIZEN_SPAWN_FREQ			1024 // spawn citizens every n simulation ticks
 #define CITIZEN_SPAWN_METHOD		0 // 0 to match target amount, 1 for fixed amount

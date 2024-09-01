@@ -83,12 +83,12 @@ std::vector<PathWrapper> Node::reconstructPath(std::unordered_map<Node*, PathWra
 }
 
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
-    PathCacheWrapper* cachedPath = &cache.get(this, end);
-    if (cachedPath != nullptr) {
-        std::copy(cachedPath->begin(), cachedPath->end(), destPath);
-        *destPathSize = char(cachedPath->size);
-        if (cachedPath->size < CITIZEN_PATH_SIZE) {
-            destPath[cachedPath->size] = PathWrapper();
+    PathCacheWrapper& cachedPath = cache.get(this, end);
+    if (cachedPath.size > 0) {
+        std::copy(cachedPath.begin(), cachedPath.end(), destPath);
+        *destPathSize = char(cachedPath.size);
+        if (cachedPath.size < CITIZEN_PATH_SIZE) {
+            destPath[cachedPath.size] = PathWrapper();
         }
         return true;
     }

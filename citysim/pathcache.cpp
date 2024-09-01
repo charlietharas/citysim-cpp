@@ -6,11 +6,11 @@ PathCacheWrapper::PathCacheWrapper() {
     set(nullptr, nullptr, nullptr, 0, -1, false);
 }
 
-PathCacheWrapper::PathCacheWrapper(Node* st, Node* e, PathWrapper* p, size_t s) {
+PathCacheWrapper::PathCacheWrapper(Node* st, Node* e, PathWrapper* p, int s) {
     set(st, e, p, s, -1, false);
 }
 
-void PathCacheWrapper::set(Node* st, Node* e, PathWrapper* p, size_t s, int l, bool reversePath) {
+void PathCacheWrapper::set(Node* st, Node* e, PathWrapper* p, int s, int l, bool reversePath) {
     if (reversePath) {
         for (size_t i = 0; i < s-1; i++) {
             path[i].node = p[s-i-1].node;
@@ -52,7 +52,7 @@ PathCache::~PathCache() {
     delete(cache);
 }
 
-bool PathCache::put(Node* start, Node* end, PathWrapper* p, size_t s, bool reversePath) {
+bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s, bool reversePath) {
     int bucket = (start->numerID + end->numerID) % NUM_BUCKETS;
     int bucketInd = bucket * BUCKET_SIZE;
     int max = -1;
