@@ -28,6 +28,7 @@ public:
     char status;
     float score;
     unsigned short int gridPos;
+    unsigned long int totalRiders;
     PathWrapper neighbors[NODE_N_NEIGHBORS];
     float weights[NODE_N_NEIGHBORS];
     Train* trains[NODE_N_TRAINS];
@@ -66,7 +67,7 @@ public:
     }
     unsigned int numTrains();
 
-    std::vector<PathWrapper> reconstructPath(std::unordered_map<Node*, PathWrapper*>& from, Node* end);
+    std::vector<PathWrapper> reconstructPath(std::unordered_map<Node*, PathWrapper>& from, Node* end);
     PathCacheWrapper& getCachedPath(Node* end);
     bool findPath(Node* end, PathWrapper* destPath, char* destPathSize);
 };

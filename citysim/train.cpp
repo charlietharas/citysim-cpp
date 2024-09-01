@@ -78,11 +78,6 @@ void Train::updatePositionAlongLine(float speed) {
 			if (getLastStop()->removeTrain(this)) {
 				timer = 0;
 				status = STATUS_IN_TRANSIT;
-				#if ERROR_MODE == true
-				if (capacity == TRAIN_CAPACITY) {
-					std::cout << "Full [" << line->id << "] train leaving " << getLastStop()->id << std::endl;
-				}
-				#endif
 			}
 			#if ERROR_MODE == true
 			else {

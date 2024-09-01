@@ -125,8 +125,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>C:\Users\charl\coding\lib\SFML-2.6.1-windows-vc17-64-bit\SFML-2.6.1\include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp14</LanguageStandard>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4267;4099;4244</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

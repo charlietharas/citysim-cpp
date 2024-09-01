@@ -40,6 +40,11 @@ public:
 	std::string currentPathStr();
 
 	bool updatePositionAlongPath(float speed);
+private:
+	inline void incrCapacity() {
+		getCurrentNode()->capacity++;
+		getCurrentNode()->totalRiders++;
+	}
 };
 
 class CitizenVector {
@@ -62,12 +67,15 @@ public:
 	inline size_t capacity() {
 		return vec.capacity();
 	}
+	inline size_t max() {
+		return maxSize;
+	}
 
 	bool add(Node* start, Node* end);
 	bool remove(int index);
 	bool triggerCitizenUpdate(int index, float speed);
 private:
+	size_t maxSize;
 	std::vector<Citizen> vec;
 	std::stack<Citizen*> inactive;
-	size_t maxSize;
 };

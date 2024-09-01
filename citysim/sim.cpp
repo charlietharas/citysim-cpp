@@ -35,9 +35,9 @@ long unsigned int renderTick;
 
 // statistics
 unsigned int handledCitizens;
-std::vector<size_t> activeCitizensStat;
+std::vector<int> activeCitizensStat;
 std::vector<double> clockStat;
-std::vector<double> simSpeedStat;
+std::vector<int> simSpeedStat;
 
 // node grid
 int NODE_GRID_ROW_SIZE;
@@ -51,26 +51,27 @@ int VALID_TRAINS;
 Line lines[MAX_LINES];
 Node nodes[MAX_NODES];
 Train trains[MAX_TRAINS];
-CitizenVector citizens(MAX_CITIZENS / 2, MAX_CITIZENS);
+CitizenVector citizens(CITIIZEN_VEC_RESERVE, MAX_CITIZENS);
 
 // multithreading managers
-std::mutex trainsMutex;
-std::mutex citizensMutex;
-std::mutex pathsMutex;
-std::mutex presetCitizenMutex;
-std::atomic<bool> customSpawnCitizens(false);
-std::atomic<bool> justDidPathfinding(false);
-std::atomic<bool> shouldExit(false);
-std::condition_variable doPathfinding;
-std::condition_variable doCustomCitizenSpawn;
-std::condition_variable doSimulation;
+std::mutex trainsMutex; // locks trains array for drawing/simulating
+std::mutex pathsMutex; // pause helper
+std::mutex customCitizenSpawnMutex; // pause helper
+extern std::mutex citizensMutex; // see citizens.cpp
+std::atomic<bool> customSpawnCitizens(false); // pause helper
+std::atomic<bool> justDidPathfinding(false); // pause helper
+std::atomic<bool> shouldExit(false); // global thread control
+std::condition_variable doPathfinding; // pauses pathfinding thread
+std::condition_variable doCustomCitizenSpawn; // pings pathfinding thread for custom citizen spawning
+std::condition_variable doSimulation; // pauses simulation thread
 
 // misc
 Node* nearestNode;
 Line WALKING_LINE;
 
-// TODO optimize for speed
 void generateRandomCitizens(int spawnAmount) {
+	if (spawnAmount <= 0) return;
+
 	int spawnedCount = 0;
 
 	while (spawnedCount < spawnAmount) {
@@ -110,6 +111,7 @@ void generateRandomCitizens(int spawnAmount) {
 }
 
 void debugReport() {
+	std::lock_guard<std::mutex> citizensLock(citizensMutex);
 	std::cout << "Report at tick " << simTick << ":" << std::endl;
 
 	// display statuses of allocated citizens
@@ -154,10 +156,18 @@ void debugReport() {
 		}
 	}
 
-	if (!stuckMap.empty()) {
+	bool actuallyStuck = false;
+	for (auto const& x : stuckMap) {
+		if (x.second > CITIZEN_STUCK_THRESH) {
+			actuallyStuck = true;
+			break;
+		}
+	}
+
+	if (actuallyStuck) {
 		std::cout << "Citizens getting stuck at: " << std::endl;
 		for (auto const& x : stuckMap) {
-			if (x.second >> CITIZEN_STUCK_THRESH) {
+			if (x.second > CITIZEN_STUCK_THRESH) {
 				std::cout << x.first << " ( " << x.second << ")\t";
 			}
 		}
@@ -167,12 +177,16 @@ void debugReport() {
 	// display problematic nodes
 	bool foundLargeNode = false;
 	for (int i = 0; i < VALID_NODES; i++) {
-		if (nodes[i].capacity > NODE_CAPACITY_WARN_THRESH) {
+		if (nodes[i].capacity > NODE_CAPACITY_WARN) {
 			if (!foundLargeNode) std::cout << "Unusually large nodes:" << std::endl;
 			foundLargeNode = true;
 			std::cout << nodes[i].id << "[" << nodes[i].numerID << "] (" << nodes[i].capacity << ")" << ", ";
 		}
 	}
+	if (foundLargeNode) std::cout << std::endl;
+
+	// display citizen vector information
+	std::cout << "Citizen vector size=" << citizens.size() << " active=" << citizens.activeSize() << " inactive=" << citizens.size() - citizens.activeSize() << " cap=" << citizens.capacity() << " max=" << citizens.max() << std::endl;
 
 	std::cout << std::endl;
 }
@@ -189,7 +203,7 @@ public:
 
 	~CitizenThreadPool() {
 		{
-			std::unique_lock<std::mutex> lock(queueMutex);
+			std::unique_lock<std::mutex> queueLock(queueMutex);
 			stop = true;
 		}
 		citizenThreadCV.notify_all();
@@ -201,15 +215,15 @@ public:
 	template<class F>
 	void enqueue(F&& f) {
 		{
-			std::unique_lock<std::mutex> lock(queueMutex);
+			std::unique_lock<std::mutex> queueLock(queueMutex);
 			tasks.emplace(std::forward<F>(f));
 		}
 		citizenThreadCV.notify_one();
 	}
 
 	void waitForCompletion() {
-		std::unique_lock<std::mutex> lock(queueMutex);
-		citizenThreadDoneCV.wait(lock, [this] { return tasks.empty() && activeThreads == 0; });
+		std::unique_lock<std::mutex> queueLock(queueMutex);
+		citizenThreadDoneCV.wait(queueLock, [this] { return tasks.empty() && activeThreads == 0; });
 	}
 private:
 	std::vector<std::thread> workers;
@@ -224,8 +238,8 @@ private:
 		while (!shouldExit) {
 			std::function<void()> task;
 			{
-				std::unique_lock<std::mutex> lock(queueMutex);
-				citizenThreadCV.wait(lock, [this] { return stop || !tasks.empty(); });
+				std::unique_lock<std::mutex> queueLock(queueMutex);
+				citizenThreadCV.wait(queueLock, [this] { return stop || !tasks.empty(); });
 				if (stop && tasks.empty()) {
 					return;
 				}
@@ -332,7 +346,7 @@ int init() {
 	}
 
 	VALID_NODES = row;
-	std::cout << "Parsed " << VALID_NODES << " nodes (stations)" << std::endl;
+	std::cout << "Processed " << VALID_NODES << " nodes (stations)" << std::endl;
 	std::cout << "Total system ridership: " << totalRidership << std::endl;
 
 	// update randint generator for citizen generation
@@ -384,6 +398,7 @@ int init() {
 
 	// add node walking transfer neighbors (all nodes within TRANSFER_MAX_DIST units)
 	WALKING_LINE = Line();
+	WALKING_LINE.color = sf::Color::Black;
 	std::strcpy(WALKING_LINE.id, WALK_LINE_ID_STR);
 
 	int transferNeighbors = 0;
@@ -457,7 +472,8 @@ int init() {
 	}
 
 	std::cout << "Processed remaining node data" << std::endl;
-	std::cout << "Generated " << lineNeighbors << " neighbor pairs (total " << transferNeighbors + lineNeighbors << ", " << transferNeighbors << " walk/" << lineNeighbors << " line)" << std::endl;
+	std::cout << "Generated " << lineNeighbors << " line neighbors" << std::endl;
+	std::cout << "Total neighbors: " << transferNeighbors + lineNeighbors << std::endl;
 	std::cout << "Generated " << VALID_TRAINS << " trains" << std::endl;
 
 	// enable continuous citizen spawning by default (necessary to generate initial citizen batch)
@@ -641,7 +657,7 @@ void renderingThread() {
 						std::cout << "User selected end " << userEndNode->id << std::endl;
 						#endif
 						for (char i = 0; i < userPathSize; i++) {
-							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), userPath[i].node->getFillColor()));
+							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), userPath[i].line->color));
 						}
 						userPathVertexBuffer.create(userPathSize);
 						userPathVertexBuffer.update(userPathVertices.data());
@@ -691,11 +707,11 @@ void renderingThread() {
 					drawTrains = !drawTrains;
 				}
 				// press - to decrease simulation speed (up to minimum)
-				if (event.key.code == sf::Keyboard::Subtract && !simRunning) {
+				if (event.key.code == sf::Keyboard::Dash && !simRunning) {
 					SIM_SPEED = std::min(std::max(SIM_SPEED - SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
 				}
-				// press + to increase simulation speed (up to maximum)
-				if (event.key.code == sf::Keyboard::Add && !simRunning) {
+				// press = to increase simulation speed (up to maximum)
+				if (event.key.code == sf::Keyboard::Equal && !simRunning) {
 					SIM_SPEED = std::min(std::max(SIM_SPEED + SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
 				}
 				// press p to toggle simulation pause
@@ -705,17 +721,13 @@ void renderingThread() {
 				}
 				// press space to spawn CUSTOM_CITIZEN_SPAWN_AMT citizens at the nearest node
 				if (event.key.code == sf::Keyboard::Space) {
-					{
-						std::unique_lock<std::mutex> lock(presetCitizenMutex);
-						customSpawnCitizens = true;
-					}
+					std::unique_lock<std::mutex> customCitizenSpawnLock(customCitizenSpawnMutex);
+					customSpawnCitizens = true;
 					doPathfinding.notify_one();
-					std::unique_lock<std::mutex> lock(presetCitizenMutex);
-					doCustomCitizenSpawn.wait(lock, [] {return !customSpawnCitizens;  });
+					doCustomCitizenSpawn.wait(customCitizenSpawnLock, [] {return !customSpawnCitizens;  });
 				}
 				// press semicolon to print useful information for debugging/performance analysis
 				if (event.key.code == sf::Keyboard::Semicolon) {
-					std::lock_guard<std::mutex> lock(citizensMutex);
 					debugReport();
 				}
 				// press backspace to toggle "passive" citizen spawning
@@ -740,17 +752,19 @@ void renderingThread() {
 			size_t c = citizens.activeSize();
 			std::string speedString;
 			if (!simRunning) {
-				double s = simSpeedStat[simSpeedStat.size() - 1];
+				int s = simSpeedStat[simSpeedStat.size() - 1];
 				speedString = std::to_string(s) + " ticks/sec\n";
 			}
 			else {
 				speedString = "Simulation paused (tick " + std::to_string(simTick) + ")\n";
 			}
-			text.setString(std::to_string(c) + " active citizens\n" + speedString + nearestNode->id + " [" + std::to_string(nearestNode->capacity) + "]");
+			char buffer[8];
+			std::sprintf(buffer, "%.1f", SIM_SPEED);
+			text.setString(std::to_string(c) + " active citizens\n" + speedString + nearestNode->id + " [" + std::to_string(nearestNode->capacity) + "]\n" + buffer);
 		}
 
 		if (drawTrains) {
-			std::lock_guard<std::mutex> trainLock(trainsMutex);
+			std::lock_guard<std::mutex> trainsLock(trainsMutex);
 			for (int i = 0; i < VALID_TRAINS; i++) {
 				float newRadius = TRAIN_MIN_SIZE + trains[i].capacity / TRAIN_CAPACITY_FLOAT * (TRAIN_SIZE_DIFF);
 				trains[i].updateRadius(newRadius);
@@ -802,10 +816,11 @@ void renderingThread() {
 	}
 }
 
+// TODO pathfinding is too slow! make faster, make better
 void pathfindingThread() {
-	std::unique_lock<std::mutex> lock(pathsMutex);
+	std::unique_lock<std::mutex> pathsLock(pathsMutex);
 	while (!shouldExit) {
-		doPathfinding.wait(lock, [] {return !justDidPathfinding || customSpawnCitizens || shouldExit; });
+		doPathfinding.wait(pathsLock, [] {return !justDidPathfinding || customSpawnCitizens || shouldExit; });
 		if (shouldExit) break;
 
 		// spawn citizens at user request
@@ -831,13 +846,12 @@ void pathfindingThread() {
 			generateRandomCitizens(CITIZEN_SPAWN_AMT);
 			#else
 			// spawn citizens up to a target amount TARGET_CITIZEN_COUNT
-			generateRandomCitizens(TARGET_CITIZEN_COUNT - (int)citizens.activeSize());
+			generateRandomCitizens(TARGET_CITIZEN_COUNT - citizens.activeSize());
 			#endif
 		}
 	}
 }
 
-// TODO debug citizens getting stuck at S_S stops
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
 	simRunning = false;
@@ -879,14 +893,13 @@ void simulationThread() {
 		
 		// ping pathfinding thread to spawn citizens
 		if (simTick % CITIZEN_SPAWN_FREQ == 0 && toggleSpawn) {
-			std::lock_guard<std::mutex> lock(pathsMutex);
 			justDidPathfinding = false;
 			doPathfinding.notify_one();
 		}
 
 		// run simulation on trains and citizens
 		{
-			std::lock_guard<std::mutex> lock(trainsMutex);
+			std::lock_guard<std::mutex> trainsLock(trainsMutex);
 			float trainSpeed = TRAIN_SPEED * SIM_SPEED;
 			for (int i = 0; i < VALID_TRAINS; i++) {
 				trains[i].updatePositionAlongLine(trainSpeed);
@@ -894,7 +907,7 @@ void simulationThread() {
 		}
 
 		{
-			std::lock_guard<std::mutex> lock(citizensMutex);
+			std::lock_guard<std::mutex> citizensLock(citizensMutex);
 			float citizenSpeed = CITIZEN_SPEED * SIM_SPEED;
 			size_t chunkSize = citizens.activeSize() / NUM_CITIZEN_WORKER_THREADS + 1;
 
@@ -912,11 +925,11 @@ void simulationThread() {
 		}
 	}
 
-	std::cout << "SIM DONE!" << std::endl;
+	std::cout << std::endl << "SIM DONE!" << std::endl;
 	std::cout << "Simulation ticks elapsed: " << simTick << std::endl;
 	std::cout << "Simulation time elapsed: " << (double(clock()) - timeElapsed) / CLOCKS_PER_SEC << "s" << std::endl;
-	size_t averageActiveCitizens = 0; 
-	for (size_t i : activeCitizensStat) averageActiveCitizens += i;
+	long int averageActiveCitizens = 0; 
+	for (int i : activeCitizensStat) averageActiveCitizens += i;
 	averageActiveCitizens /= activeCitizensStat.size();
 	std::cout << "Averaged " << averageActiveCitizens << " citizen agents" << std::endl;
 	std::cout << "Handled total " << handledCitizens << " citizen agents" << std::endl;

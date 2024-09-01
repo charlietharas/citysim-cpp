@@ -3,7 +3,8 @@
 class Node;
 extern Line WALKING_LINE;
 
-std::mutex citizenDeletionMutex;
+std::mutex blockStack; // controls access to CitizenVector.inactive()
+std::mutex citizensMutex; // controls access to citizens.vec (used for debug reports, simulation, pushing back new citizens)
 
 Citizen::Citizen() {
 	reset();
@@ -31,9 +32,6 @@ std::string Citizen::currentPathStr() {
 // returns true if the citizen has been despawned/is despawned
 bool Citizen::updatePositionAlongPath(float speed) {
 	if (index == pathSize - 1 || getNextNode() == nullptr) {
-		#if ERROR_MODE == true
-		std::cout << "ERR default despawned citizen @" << int(index) << std::endl;
-		#endif
 		status = STATUS_DESPAWNED;
 		return true;
 	}
@@ -73,7 +71,7 @@ bool Citizen::updatePositionAlongPath(float speed) {
 		}
 		else {
 			status = STATUS_TRANSFER;
-			getCurrentNode()->capacity++;
+			incrCapacity();
 		}
 		return false;
 
@@ -86,7 +84,7 @@ bool Citizen::updatePositionAlongPath(float speed) {
 			}
 			else {
 				status = STATUS_TRANSFER;
-				getCurrentNode()->capacity++;
+				incrCapacity();
 			}
 			index++;
 		}
@@ -100,11 +98,6 @@ bool Citizen::updatePositionAlongPath(float speed) {
 		return false;
 
 	case STATUS_AT_STOP:
-		if (getNextLine() == &WALKING_LINE) {
-			status = STATUS_WALK;
-			return false;
-		}
-
 		for (int i = 0; i < NODE_N_TRAINS; i++) {
 			Train* t = getCurrentNode()->trains[i];
 			if (t != nullptr && t->getNextStop() == getNextNode() && t->line == getCurrentLine() && t->capacity < TRAIN_CAPACITY) {
@@ -139,7 +132,7 @@ bool Citizen::updatePositionAlongPath(float speed) {
 				}
 				else {
 					status = STATUS_TRANSFER;
-					getCurrentNode()->capacity++;
+					incrCapacity();
 				}
 
 				currentTrain = nullptr;
@@ -159,7 +152,7 @@ CitizenVector::CitizenVector(size_t reserve, size_t maxS) {
 }
 
 bool CitizenVector::add(Node* start, Node* end) {
-	if (inactive.empty()) {
+	if (inactive.size() < NUM_CITIZEN_WORKER_THREADS) {
 		if (size() > maxSize) {
 			return false;
 		}
@@ -167,16 +160,30 @@ bool CitizenVector::add(Node* start, Node* end) {
 		if (!start->findPath(end, c.path, &c.pathSize)) {
 			return false;
 		}
-		c.reset();
-		vec.push_back(c);
+		{
+			std::lock_guard<std::mutex> citizensLock(citizensMutex);
+			vec.push_back(c);
+		}
 	}
 	else {
-		std::lock_guard<std::mutex> lock(citizenDeletionMutex);
-		Citizen* c = inactive.top();
-		if (!start->findPath(end, c->path, &c->pathSize)) {
+		Citizen* c;
+		{
+			std::lock_guard<std::mutex> stackLock(blockStack);
+			c = inactive.top();
+			inactive.pop();
+		}
+		if (c == nullptr) {
+			#if ERROR_MODE == true
+			std::cout << "ERR found nullptr reference in inactive citizens deque" << std::endl;
+			#endif
 			return false;
 		}
-		inactive.pop();
+		if (!start->findPath(end, c->path, &c->pathSize)) {
+			std::lock_guard<std::mutex> stackLock(blockStack);
+			inactive.push(c);
+			return false;
+		}
+
 		c->reset();
 	}
 	return true;
@@ -184,12 +191,10 @@ bool CitizenVector::add(Node* start, Node* end) {
 
 bool CitizenVector::remove(int index) {
 	vec[index].status = STATUS_DESPAWNED;
-
 	{
-		std::lock_guard<std::mutex> lock(citizenDeletionMutex);
+		std::lock_guard<std::mutex> stackLock(blockStack);
 		inactive.push(&vec[index]);
 	}
-
 	return true;
 }
 
