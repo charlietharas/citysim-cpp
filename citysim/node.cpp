@@ -7,17 +7,17 @@ PathCache cache = PathCache(PATH_CACHE_BUCKETS, PATH_CACHE_BUCKETS_SIZE);
 
 Node::Node() : Drawable(NODE_MIN_SIZE, NODE_N_POINTS) {
     numNeighbors = 0;
-    for (int i = 0; i < N_NEIGHBORS; i++) {
+    for (int i = 0; i < NODE_N_NEIGHBORS; i++) {
         neighbors[i] = PathWrapper();
     }
-    for (int i = 0; i < N_TRAINS; i++) {
+    for (int i = 0; i < NODE_N_TRAINS; i++) {
         trains[i] = nullptr;
     }
 }
 
 
 bool Node::addTrain(Train* train) {
-    for (int i = 0; i < N_TRAINS; i++) {
+    for (int i = 0; i < NODE_N_TRAINS; i++) {
         if (trains[i] == nullptr) {
             trains[i] = train;
             return true;
@@ -27,7 +27,7 @@ bool Node::addTrain(Train* train) {
 }
 
 bool Node::removeTrain(Train* train) {
-    for (int i = 0; i < N_TRAINS; i++) {
+    for (int i = 0; i < NODE_N_TRAINS; i++) {
         if (trains[i] == train) {
             trains[i] = nullptr;
             return true;
@@ -36,13 +36,13 @@ bool Node::removeTrain(Train* train) {
     return false;
 }
 
-bool Node::addNeighbor(PathWrapper* neighbor, float weight) {
-    for (int i = 0; i < N_NEIGHBORS; i++) {
-        if (neighbors[i].node == neighbor->node) {
+bool Node::addNeighbor(PathWrapper& neighbor, float weight) {
+    for (int i = 0; i < NODE_N_NEIGHBORS; i++) {
+        if (neighbors[i].node == neighbor.node) {
             break;
         }
         if (neighbors[i].node == nullptr) {
-            neighbors[i] = *neighbor;
+            neighbors[i] = neighbor;
             weights[i] = weight;
             numNeighbors++;
             return true;
@@ -51,9 +51,9 @@ bool Node::addNeighbor(PathWrapper* neighbor, float weight) {
     return false;
 }
 
-bool Node::removeNeighbor(PathWrapper* neighbor) {
-    for (int i = 0; i < N_NEIGHBORS; i++) {
-        if (neighbors[i].node == neighbor->node && neighbors[i].line == neighbor->line) {
+bool Node::removeNeighbor(PathWrapper& neighbor) {
+    for (int i = 0; i < NODE_N_NEIGHBORS; i++) {
+        if (neighbors[i].node == neighbor.node && neighbors[i].line == neighbor.line) {
             neighbors[i].node = nullptr;
             neighbors[i].line = nullptr;
             numNeighbors--;
@@ -63,9 +63,41 @@ bool Node::removeNeighbor(PathWrapper* neighbor) {
     return false;
 }
 
+ void Node::setGridPos(char x, char y) {
+    gridPos = x << 8 | y;
+}
+
+ char Node::gridX() {
+    return gridPos >> 8;
+}
+
+ char Node::gridY() {
+    return gridPos & 0x0F;
+}
+
+ char Node::lowerGridX() {
+    char x = gridX();
+    return x > 0 ? x - 1 : x;
+}
+
+ char Node::upperGridX() {
+    char x = gridX();
+    return x < NODE_GRID_ROWS-1 ? x + 1 : x;
+}
+
+ char Node::lowerGridY() {
+    char y = gridY();
+    return y > 0 ? y - 1 : y;
+}
+
+ char Node::upperGridY() {
+    char y = gridY();
+    return y < NODE_GRID_COLS-1 ? y + 1 : y;
+}
+
 unsigned int Node::numTrains() {
     int c = 0;
-    for (int i = 0; i < N_TRAINS; i++) {
+    for (int i = 0; i < NODE_N_TRAINS; i++) {
         if (trains[i] != nullptr) {
             c++; // lol, haha! funny!
         }

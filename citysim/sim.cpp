@@ -20,14 +20,11 @@
 #include "train.h"
 #include "citizen.h"
 
-#define _SECURE_SCL 0
-
 int VALID_LINES;
 int VALID_NODES;
 int VALID_TRAINS;
 
 float SIM_SPEED;
-float tempSimSpeed;
 const int TARGET_FPS = 60;
 const std::chrono::microseconds FRAME_DURATION(1000000 / TARGET_FPS);
 
@@ -38,7 +35,8 @@ std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_int_distribution<int> dis;
 
-long long unsigned int simTick;
+bool simRunning;
+long unsigned int simTick;
 long unsigned int renderTick;
 
 unsigned int totalRidership;
@@ -49,6 +47,10 @@ unsigned int handledCitizens;
 std::vector<size_t> activeCitizensStat;
 std::vector<double> clockStat;
 std::vector<double> simSpeedStat;
+
+int NODE_GRID_ROW_SIZE;
+int NODE_GRID_COL_SIZE;
+std::vector<std::vector<std::vector<Node*>>> nodeGrid;
 
 Line lines[MAX_LINES];
 Node nodes[MAX_NODES];
@@ -70,11 +72,12 @@ std::atomic<bool> shouldExit(false);
 
 std::condition_variable doPathfinding;
 std::condition_variable doCustomCitizenSpawn;
+std::condition_variable doSimulation;
 
 // TODO "best-practice" everything into proper .h and .cpp files, clean up comments, clean up code + formatting
 // TODO use references instead of pointers for many functions
 
-// TODO optimize for speed
+// TODO optimize for speed (likely in A*?)
 void generateCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
@@ -82,24 +85,25 @@ void generateCitizens(int spawnAmount) {
 	while (spawnedCount < spawnAmount) {
 		int startRidership = dis(gen);
 		int endRidership;
-		int startNode;
-		int endNode;
+		int startNode, startRidershipCount;
+		int endNode, endRidershipCount;
 		int i;
 		do {
-			startNode = 0;
-			endNode = 0;
+			i = 0;
+			startNode = 0; startRidershipCount = 0;
+			endNode = 0; endRidershipCount = 0;
 			endRidership = dis(gen);
-			// TODO optimize calculation
-			i = 0;
-			while (i < startRidership) {
-				i += nodes[startNode++].ridership;
+			while (startRidershipCount < startRidership || endRidershipCount < endRidership) {
+				if (startRidershipCount < startRidership) {
+					startRidershipCount += nodes[i].ridership;
+					startNode = i;
+				}
+				if (endRidershipCount < endRidership) {
+					endRidershipCount += nodes[i].ridership;
+					endNode = i;
+				}
+				i++;
 			}
-			startNode = std::min(startNode, VALID_NODES-1);
-			i = 0;
-			while (i < endRidership) {
-				i += nodes[endNode++].ridership;
-			}
-			endNode = std::min(endNode, VALID_NODES-1);
 		} while (endNode == startNode);
 
 		// add citizen
@@ -114,6 +118,8 @@ void generateCitizens(int spawnAmount) {
 }
 
 void debugReport() {
+	std::cout << "Report at tick " << simTick << ":" << std::endl;
+
 	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0} };
 	for (int i = 0; i < citizens.size(); i++) {
 		Citizen& c = citizens[i];
@@ -274,29 +280,56 @@ int init() {
 	float minMaxDiffY = maxNodeY - minNodeY;
 	for (int i = 0; i < VALID_NODES; i++) {
 		nodes[i].setPosition(Vector2f(
-			WINDOW_X_OFFSET + WINDOW_SCALE * WINDOW_X_SCALE * WINDOW_X * (nodesX[i] - minNodeX) / minMaxDiffX,
-			WINDOW_Y_OFFSET + WINDOW_Y - WINDOW_SCALE * WINDOW_Y_SCALE * WINDOW_Y * (nodesY[i] - minNodeY) / minMaxDiffY
+			WINDOW_X_OFFSET + WINDOW_SCALE * WINDOW_X_SCALE * WINDOW_WIDTH * (nodesX[i] - minNodeX) / minMaxDiffX,
+			WINDOW_Y_OFFSET + WINDOW_HEIGHT - WINDOW_SCALE * WINDOW_Y_SCALE * WINDOW_HEIGHT * (nodesY[i] - minNodeY) / minMaxDiffY
 		));
 	}
 
 	std::cout << "Normalized node positions" << std::endl;
 
+	// place Nodes onto grid to normalize nearestNode calculations
+	NODE_GRID_ROW_SIZE = WINDOW_WIDTH / NODE_GRID_ROWS;
+	NODE_GRID_COL_SIZE = WINDOW_HEIGHT / NODE_GRID_COLS;
+	for (int i = 0; i < NODE_GRID_ROWS; i++) {
+		std::vector<std::vector<Node*>> row;
+		for (int j = 0; j < NODE_GRID_COLS; j++) {
+			std::vector<Node*> cell;
+			for (int k = 0; k < VALID_NODES; k++) {
+				Vector2f p = nodes[k].getPosition();
+				if (p.x >= i * NODE_GRID_ROW_SIZE && p.x < (i + 1) * NODE_GRID_ROW_SIZE && p.y >= j * NODE_GRID_COL_SIZE && p.y < (j + 1) * NODE_GRID_COL_SIZE) {
+					cell.push_back(&nodes[k]);
+					nodes[k].setGridPos(i, j);
+				}
+			}
+			cell.shrink_to_fit();
+			row.push_back(cell);
+		}
+		row.shrink_to_fit();
+		nodeGrid.push_back(row);
+	}
+	nodeGrid.shrink_to_fit();
+
+	std::cout << "Generated node grid" << std::endl;
+
 	// add Node transfer neighbors
-	// TODO segment window into grid (subtree)
 	WALKING_LINE = Line();
 	std::strcpy(WALKING_LINE.id, WALK_LINE_ID_STR);
 
 	int transferNeighbors = 0;
-	for (int i = 0; i < VALID_NODES; i++) {
-		for (int j = 0; j < VALID_NODES; j++) {
-			if (i == j) continue;
-			if (nodes[i].dist(&nodes[j]) <= TRANSFER_MAX_DIST) {
-				struct PathWrapper neighborWrapper1 = { &nodes[i], &WALKING_LINE };
-				struct PathWrapper neighborWrapper2 = { &nodes[j], &WALKING_LINE };
-				float dist = nodes[i].dist(&nodes[j]);
-				nodes[i].addNeighbor(&neighborWrapper2, dist);
-				nodes[j].addNeighbor(&neighborWrapper1, dist);
-				transferNeighbors++;
+	for (int n = 0; n < VALID_NODES; n++) {
+		Node& node = nodes[n];
+		for (int i = node.lowerGridX(); i <= node.upperGridX(); i++) {
+			for (int j = node.lowerGridY(); j <= node.upperGridY(); j++) {
+				for (Node* other : nodeGrid[i][j]) {
+					float dist = node.dist(other);
+					if (dist < TRANSFER_MAX_DIST) {
+						PathWrapper one = { &node, &WALKING_LINE };
+						PathWrapper two = { other, &WALKING_LINE };
+						node.addNeighbor(two, dist * TRANSFER_PENALTY_MULTIPLIER);
+						other->addNeighbor(one, dist * TRANSFER_PENALTY_MULTIPLIER);
+						transferNeighbors++;
+					}
+				}
 			}
 		}
 	}
@@ -317,8 +350,8 @@ int init() {
 				struct PathWrapper neighborWrapper1 = { line.path[j], &line };
 				struct PathWrapper neighborWrapper2 = { line.path[j - 1], &line };
 				float dist = line.path[j]->dist(line.path[j - 1]) * TRANSFER_PENALTY_MULTIPLIER;
-				line.path[j]->addNeighbor(&neighborWrapper2, dist);
-				line.path[j - 1]->addNeighbor(&neighborWrapper1, dist);
+				line.path[j]->addNeighbor(neighborWrapper2, dist);
+				line.path[j - 1]->addNeighbor(neighborWrapper1, dist);
 				lineNeighbors++;
 			}
 			line.path[j]->setFillColor(line.color);
@@ -369,14 +402,14 @@ void renderingThread() {
 	// window
 	sf::ContextSettings settings;
 	settings.antialiasingLevel = 4;
-	sf::RenderWindow window(sf::VideoMode(WINDOW_X, WINDOW_Y), "CitySim C Edition", sf::Style::Titlebar | sf::Style::Close, settings);
+	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "CitySim C Edition", sf::Style::Titlebar | sf::Style::Close, settings);
 
 	// fps limiter
 	sf::Clock clock;
 
 	// white background
-	sf::RectangleShape bg(Vector2f(WINDOW_X * ZOOM_MIN * 2, WINDOW_Y * ZOOM_MIN * 2));
-	bg.setPosition(WINDOW_X * -ZOOM_MIN, WINDOW_Y * -ZOOM_MIN);
+	sf::RectangleShape bg(Vector2f(WINDOW_WIDTH * ZOOM_MIN * 2, WINDOW_HEIGHT * ZOOM_MIN * 2));
+	bg.setPosition(WINDOW_WIDTH * -ZOOM_MIN, WINDOW_HEIGHT * -ZOOM_MIN);
 	bg.setFillColor(sf::Color(255, 255, 255, 255));
 
 	// stats text
@@ -388,14 +421,13 @@ void renderingThread() {
 	text.setFillColor(sf::Color::Black);
 
 	// draw handlers
-	sf::View view(Vector2f(WINDOW_X / 2, WINDOW_Y / 2), Vector2f(WINDOW_X, WINDOW_Y));
+	sf::View view(Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2), Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
 	Vector2f panOffset(0, 0);
 	Vector2f panVelocity(0, 0);
 	float simZoom = 1.0f;
 	bool drawNodes = true;
 	bool drawLines = true;
 	bool drawTrains = true;
-	bool paused = false;
 
 	// generate vertex buffer for line (path) shapes
 	// copy line data to 1 dimensional vertex vector
@@ -448,16 +480,23 @@ void renderingThread() {
 		sf::Time frameStart = clock.getElapsedTime();
 
 		// get nearest node
-		// TODO optimize with subtree
-		float minDist = WINDOW_X * WINDOW_Y;
+		float minDist = WINDOW_WIDTH + WINDOW_HEIGHT;
 		closestNode = &nodes[0];
-		Vector2f relMousePos = Vector2f(sf::Mouse::getPosition(window)) + view.getCenter() - Vector2f(WINDOW_X / 2, WINDOW_Y / 2);
+		Vector2f relMousePos = Vector2f(sf::Mouse::getPosition(window)) + view.getCenter() - Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
 		relMousePos = view.getCenter() + (relMousePos - view.getCenter()) * simZoom;
-		for (int i = 0; i < VALID_NODES; i++) {
-			float dist = nodes[i].dist(relMousePos.x, relMousePos.y);
-			if (dist < minDist) {
-				minDist = dist;
-				closestNode = &nodes[i];
+		int mx = relMousePos.x / NODE_GRID_ROW_SIZE; int my = relMousePos.y / NODE_GRID_COL_SIZE;
+		mx = std::max(std::min(mx, NODE_GRID_ROWS - 1), 0); my = std::max(std::min(my, NODE_GRID_COLS - 1), 0);
+		int mouseXLower = mx > 0 ? mx - 1 : mx; int mouseXUpper = mx < NODE_GRID_ROWS - 1 ? mx + 1 : mx;
+		int mouseYLower = my > 0 ? my - 1 : my; int mouseYUpper = my < NODE_GRID_COLS - 1 ? my + 1 : my;
+		for (int i = mouseXLower; i <= mouseXUpper; i++) {
+			for (int j = mouseYLower; j <= mouseYUpper; j++) {
+				for (Node* node : nodeGrid[i][j]) {
+					float dist = node->dist(relMousePos.x, relMousePos.y);
+					if (dist < minDist) {
+						minDist = dist;
+						closestNode = node;
+					}
+				}
 			}
 		}
 
@@ -467,6 +506,8 @@ void renderingThread() {
 		{
 			// close
 			if (event.type == sf::Event::Closed) {
+				simRunning = true;
+				doSimulation.notify_one();
 				shouldExit = true;
 				window.close();
 			}
@@ -481,7 +522,7 @@ void renderingThread() {
 					simZoom = std::max(ZOOM_MAX, std::min(simZoom, ZOOM_MIN));
 				}
 			}
-			// pan
+			// pan with mouse
 			else if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
 				panOffset = Vector2f(sf::Mouse::getPosition(window)) - view.getCenter();
 			}
@@ -558,24 +599,17 @@ void renderingThread() {
 					drawTrains = !drawTrains;
 				}
 				// press - to decrease simulation speed (up to minimum)
-				if (event.key.code == sf::Keyboard::Subtract && !paused) {
+				if (event.key.code == sf::Keyboard::Subtract && !simRunning) {
 					SIM_SPEED = std::min(std::max(SIM_SPEED - SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
 				}
 				// press + to increase simulation speed (up to maximum)
-				if (event.key.code == sf::Keyboard::Add && !paused) {
+				if (event.key.code == sf::Keyboard::Add && !simRunning) {
 					SIM_SPEED = std::min(std::max(SIM_SPEED + SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
 				}
 				// press p to toggle simulation pause
-				// TODO pause thread instead of shutting sim speed (or, if lazy, just add a check if speed==0 and wait 1/FPS sec)
 				if (event.key.code == sf::Keyboard::P) {
-					paused = !paused;
-					if (paused) {
-						tempSimSpeed = SIM_SPEED;
-						SIM_SPEED = 0;
-					}
-					else {
-						SIM_SPEED = tempSimSpeed;
-					}
+					simRunning = !simRunning;
+					doSimulation.notify_one();
 				}
 				// press space to spawn CUSTOM_CITIZEN_SPAWN_AMT citizens at the nearest node
 				if (event.key.code == sf::Keyboard::Space) {
@@ -616,8 +650,15 @@ void renderingThread() {
 
 		if (renderTick % TEXT_REFRESH_RATE == 0) {
 			size_t c = citizens.activeSize();
-			double s = simSpeedStat[simSpeedStat.size() - 1];
-			text.setString(std::to_string(c) + " active citizens\n" + std::to_string(s) + " ticks/sec\n" + closestNode->id);
+			std::string speedString;
+			if (!simRunning) {
+				double s = simSpeedStat[simSpeedStat.size() - 1];
+				speedString = std::to_string(s) + " ticks/sec\n";
+			}
+			else {
+				speedString = "Simulation paused (tick " + std::to_string(simTick) + ")\n";
+			}
+			text.setString(std::to_string(c) + " active citizens\n" + speedString + closestNode->id);
 		}
 		window.draw(text);
 
@@ -787,14 +828,19 @@ private:
 
 void simulationThread() {
 	SIM_SPEED = DEFAULT_SIM_SPEED;
+	simRunning = false;
+
 	double timeElapsed = double(clock());
 	activeCitizensStat.reserve(BENCHMARK_RESERVE);
 	clockStat.reserve(BENCHMARK_RESERVE);
 	simSpeedStat.reserve(BENCHMARK_RESERVE);
 
 	CitizenThreadPool pool(NUM_THREADS);
-
+	
+	std::mutex simMutex;
+	std::unique_lock<std::mutex> simLock(simMutex);
 	while (!shouldExit) {
+		doSimulation.wait(simLock, [] { return !simRunning; } );
 		simTick++;
 
 		#if BENCHMARK_MODE == 1
@@ -847,8 +893,7 @@ void simulationThread() {
 					});
 			}
 
-			// pool.waitForCompletion(); // this is actually hanging the main thread
-			// TODO figure out sim speed/thread sync stuff
+			pool.waitForCompletion(); // this is actually hanging the main thread rn
 		}
 	}
 

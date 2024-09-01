@@ -15,8 +15,8 @@
 #define CITIZEN_STUCK_THRESH		10
 
 // Graphics
-#define WINDOW_X					1000
-#define WINDOW_Y					1200
+#define WINDOW_WIDTH				1000
+#define WINDOW_HEIGHT				1200
 #define WINDOW_SCALE				0.5f
 #define WINDOW_X_SCALE				1.25f
 #define WINDOW_Y_SCALE				1.0f
@@ -78,11 +78,12 @@
 
 // Node
 #define NODE_ID_SIZE				36
-#define N_NEIGHBORS					24
-#define N_TRAINS					8
-#define TRANSFER_WEIGHT				16
+#define NODE_GRID_ROWS				10
+#define NODE_GRID_COLS				12
+#define NODE_N_NEIGHBORS			24
+#define NODE_N_TRAINS				8
 #define TRANSFER_MAX_DIST			8
-#define TRANSFER_PENALTY			48
+#define TRANSFER_PENALTY			32
 #define TRANSFER_PENALTY_MULTIPLIER	1.5f
 #define STOP_PENALTY				2
 #define NODE_CAPACITY				2048u

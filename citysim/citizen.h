@@ -129,7 +129,7 @@ public:
 				return false;
 			}
 
-			for (int i = 0; i < N_TRAINS; i++) {
+			for (int i = 0; i < NODE_N_TRAINS; i++) {
 				Train* t = getCurrentNode()->trains[i];
 				if (t != nullptr && t->getNextStop() == getNextNode() && t->line == getCurrentLine() && t->capacity < TRAIN_CAPACITY) {
 					timer = 0;

@@ -28,17 +28,25 @@ public:
     char numNeighbors;
     char status;
     float score;
-    PathWrapper neighbors[N_NEIGHBORS];
-    float weights[N_NEIGHBORS];
-    Train* trains[N_TRAINS];
+    unsigned short int gridPos;
+    PathWrapper neighbors[NODE_N_NEIGHBORS];
+    float weights[NODE_N_NEIGHBORS];
+    Train* trains[NODE_N_TRAINS];
 
     Node();
 
     bool addTrain(Train* train);
     bool removeTrain(Train* train);
-    bool addNeighbor(PathWrapper* neighbor, float weight);
-    bool removeNeighbor(PathWrapper* neighbor);
+    bool addNeighbor(PathWrapper& neighbor, float weight);
+    bool removeNeighbor(PathWrapper& neighbor);
 
+    void setGridPos(char x, char y);
+    char gridX();
+    char gridY();
+    char lowerGridX();
+    char upperGridX();
+    char lowerGridY();
+    char upperGridY();
     unsigned int numTrains();
 
     std::vector<PathWrapper> reconstructPath(std::unordered_map<Node*, PathWrapper*>& from, Node* end);
