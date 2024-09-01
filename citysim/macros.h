@@ -1,18 +1,6 @@
 #pragma once
 
-// constexpr is for LOSERS
-// TODO use constexpr
-
-// Debugging
-#define AOK							0
-#define ERROR_OPENING_FILE			1
-#define BENCHMARK_MODE				0
-#define BENCHMARK_TICK_DURATION		50000
-#define BENCHMARK_STAT_RATE			1000
-#define BENCHMARK_RESERVE			BENCHMARK_TICK_DURATION / BENCHMARK_STAT_RATE
-#define FAIL_RATE_SAVE_RATE			500
-#define CITIZEN_DESPAWN_WARN		131072 * CITIZEN_SPEED
-#define CITIZEN_STUCK_THRESH		10
+// constexpr is for LOSERS (too lazy to change now)
 
 // Graphics
 #define WINDOW_WIDTH				1000
@@ -22,12 +10,13 @@
 #define WINDOW_Y_SCALE				1.0f
 #define WINDOW_X_OFFSET				100.0f
 #define WINDOW_Y_OFFSET				-150.0f
-#define ZOOM_SCALE					0.1f
+#define ZOOM_AMT					0.1f
 #define ZOOM_MAX					0.5f
 #define ZOOM_MIN					1.5f
 #define ARROW_PAN_AMT				6.0f
-#define MAX_PAN_VEL					15.0f
-#define PAN_DECAY					0.9f
+#define MAX_PAN_VELOCITY			15.0f // technically not velocity, measured in x/y direction
+#define PAN_DECAY					0.9f // controls smoothness/gliding of arrow key pan
+#define ANTIALIAS_LEVEL				4
 #define TEXT_FONT_SIZE				16
 #define TRAIN_MIN_SIZE				5.0f
 #define TRAIN_MAX_SIZE				10.0f
@@ -43,16 +32,15 @@
 #define MAX_LINES					32
 #define MAX_NODES					512
 #define MAX_TRAINS					256
-#define MAX_CITIZENS				262144
-#define NUM_THREADS					16
+#define MAX_CITIZENS				200000
+#define NUM_CITIZEN_WORKER_THREADS	16
 
 // Simulation pacing
 #define DEFAULT_SIM_SPEED			5.0f
 #define MIN_SIM_SPEED				0.5f
 #define MAX_SIM_SPEED				10.0f
-#define SIM_SPEED_INCR				0.25f
-#define DEFAULT_TRAIN_STOP_SPACING	8
-#define DISTANCE_SCALE				128
+#define SIM_SPEED_INCR				0.5f
+#define DEFAULT_TRAIN_STOP_SPACING	12 // spawn trains every n stops
 
 // File loading
 #define STATIONS_CSV_NUM_COLUMNS	6
@@ -60,7 +48,6 @@
 
 // Node and Train status flags
 #define STATUS_DESPAWNED			0
-#define STATUS_DESPAWNED_ERR		0
 #define STATUS_SPAWNED				1
 #define STATUS_IN_TRANSIT			2
 #define STATUS_AT_STOP				3
@@ -68,44 +55,56 @@
 #define STATUS_WALK					5
 #define STATUS_FORWARD				1
 #define STATUS_BACK					0
-#define STATUS_EXISTS				1
 #define STATUS_HIGHLIGHTED			2
 
 // Line
 #define LINE_PATH_SIZE				64
-#define LINE_ID_SIZE				4
+#define LINE_ID_SIZE				4 // size of char buffer
 #define WALK_LINE_ID_STR			"WLK"
 
-// Node
-#define NODE_ID_SIZE				36
+// Nodes
+#define NODE_ID_SIZE				36 // size of char buffer
+#define NODE_CAPACITY				128u // cosmetic only
+#define NODE_CAPACITY_WARN_THRESH	NODE_CAPACITY * 32
 #define NODE_GRID_ROWS				10
 #define NODE_GRID_COLS				12
-#define NODE_N_NEIGHBORS			24
+
+// Pathfinding
+#define NODE_N_NEIGHBORS			12
 #define NODE_N_TRAINS				8
 #define TRANSFER_MAX_DIST			8
-#define TRANSFER_PENALTY			32
-#define TRANSFER_PENALTY_MULTIPLIER	1.5f
-#define STOP_PENALTY				2
-#define NODE_CAPACITY				2048u
-#define NODE_CAPACITY_WARN_THRESH	NODE_CAPACITY * 32
+#define TRANSFER_PENALTY			32 // fixed penalty for transferring to another line/walking
+#define TRANSFER_PENALTY_MULTIPLIER	2.0f // multiplier for distance walked during walking transfers
+#define STOP_PENALTY				2 // fixed penalty for each stop
 
 // Train
-#define TRAIN_SPEED					4
-#define TRAIN_CAPACITY				1024u
-#define TRAIN_STOP_THRESH			1024 * TRAIN_SPEED
+#define TRAIN_SPEED					4.0f
+#define TRAIN_CAPACITY				256u // citizens cannot board trains if they are at max capacity
+#define TRAIN_STOP_THRESH			1024 * TRAIN_SPEED // how long trains wait at stops
 
 // Citizen
-#define CITIZEN_SPEED				1
-#define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED
-#define CITIZEN_SPAWN_INIT			32000
-#define CITIZEN_SPAWN_FREQ			1024
-#define CITIZEN_SPAWN_METHOD		0 // 1 for fixed amount per tick, otherwise match TARGET_CITIZEN_COUNT
-#define CITIZEN_SPAWN_MAX			1024
+#define CITIZEN_SPEED				1.0f
+#define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED // how long citizens walk through stations before waiting for a train
+#define CITIZEN_PATH_SIZE			64 // high effect on memory consumption
+#define CITIZEN_SPAWN_INIT			32000 // initial amount of citizens to spawn before simulation start
+#define CITIZEN_SPAWN_FREQ			1024 // spawn citizens every n simulation ticks
+#define CITIZEN_SPAWN_METHOD		0 // 0 to match target amount, 1 for fixed amount
+#define CITIZEN_SPAWN_AMT			1024
 #define TARGET_CITIZEN_COUNT		32000
-#define CITIZEN_RANDOMIZE_SPAWN_AMT	0
-#define N_NODES						64
+#define CUSTOM_CITIZEN_SPAWN_AMT	256
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
-#define CITIZEN_PATH_SIZE			64
+
+// PathCache
 #define PATH_CACHE_BUCKETS			96
 #define PATH_CACHE_BUCKETS_SIZE		24
-#define CUSTOM_CITIZEN_SPAWN_AMT	256
+
+// Debugging
+#define AOK							0
+#define ERROR_OPENING_FILE			1
+#define BENCHMARK_MODE				false
+#define BENCHMARK_TICK_AMT			50000
+#define STAT_RATE					1000 // every n simulation ticks
+#define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE
+#define ERROR_MODE					false
+#define CITIZEN_DESPAWN_WARN		131072 * CITIZEN_SPEED
+#define CITIZEN_STUCK_THRESH		10 // ignore nodes with below n stuck citizens when outputting debug info

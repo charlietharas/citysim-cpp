@@ -66,13 +66,13 @@ public:
 	bool updatePositionAlongPath(float speed) {
 		if (index == pathSize - 1 || getNextNode() == nullptr) {
 			// std::cout << "ERR default despawned citizen @" << int(index) << std::endl;
-			status = STATUS_DESPAWNED_ERR;
+			status = STATUS_DESPAWNED;
 			return true;
 		}
 
 		if (getCurrentNode() == nullptr) {
 			// std::cout << "ERR despawned NULLPATHREF citizen @" << int(index) << ": " << currentPathStr() << std::endl;
-			status = STATUS_DESPAWNED_ERR;
+			status = STATUS_DESPAWNED;
 			return true;
 		}
 
@@ -84,7 +84,7 @@ public:
 			if (status == STATUS_AT_STOP || status == STATUS_TRANSFER) {
 				subCapacity(&getCurrentNode()->capacity);
 			}
-			status = STATUS_DESPAWNED_ERR;
+			status = STATUS_DESPAWNED;
 			return true;
 		}
 
