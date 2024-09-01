@@ -68,6 +68,6 @@ public:
 	bool triggerCitizenUpdate(int index, float speed);
 private:
 	std::vector<Citizen> vec;
-	std::stack<Citizen*> inactive; // would this be faster/safer as a deque?
+	std::stack<Citizen*> inactive;
 	size_t maxSize;
 };

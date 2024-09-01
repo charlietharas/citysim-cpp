@@ -71,10 +71,7 @@ std::condition_variable doSimulation;
 Node* nearestNode;
 Line WALKING_LINE;
 
-// TODO "best-practice" everything into proper .h and .cpp files, clean up comments, clean up code + formatting
-// TODO use references instead of pointers for many functions
-
-// TODO optimize for speed
+// TODO optimize for speed (start by caching subpaths)
 void generateCitizens(int spawnAmount) {
 	int spawnedCount = 0;
 
@@ -444,7 +441,7 @@ int init() {
 
 		// generate train objects
 		std::string idStr = line.id;
-		// TODO custom headways, train speeds
+		// TODO custom and accurate train counts, speeds
 		int spacing = idStr.find("A_") == std::string::npos ? DEFAULT_TRAIN_STOP_SPACING / 2 : DEFAULT_TRAIN_STOP_SPACING; // avoid excessive generation for the A train
 		for (int k = 0; k < j; k+= DEFAULT_TRAIN_STOP_SPACING) {
 			// generate 2 trains (one going backward, one forward) except if at first/last stop

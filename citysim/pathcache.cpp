@@ -1,5 +1,7 @@
 #include "pathcache.h"
 
+PathCacheWrapper NULL_WRAPPER;
+
 PathCacheWrapper::PathCacheWrapper() {
     set(nullptr, nullptr, nullptr, 0, -1, false);
 }
@@ -71,16 +73,17 @@ bool PathCache::put(Node* start, Node* end, PathWrapper* p, size_t s, bool rever
     return true;
 }
 
-PathCacheWrapper* PathCache::get(Node* start, Node* end) {
+PathCacheWrapper& PathCache::get(Node* start, Node* end) {
     int bucket = (start->numerID + end->numerID) % NUM_BUCKETS;
     int bucketInd = bucket * BUCKET_SIZE;
     for (int i = 0; i < BUCKET_SIZE; i++) {
         int ind = bucketInd + i;
         if (cache[bucketInd].startNode == start && cache[bucketInd].endNode == end) {
             cache[bucketInd].lru = 0;
-            return &cache[bucketInd];
+            return cache[bucketInd];
         }
     }
-    return nullptr;
+
+    return NULL_WRAPPER;
 }
 

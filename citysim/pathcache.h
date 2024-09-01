@@ -21,7 +21,7 @@ public:
     PathCache(size_t numBuckets, size_t bucketSize);
     ~PathCache();
     bool put(Node* start, Node* end, PathWrapper* p, size_t s, bool reversePath);
-    PathCacheWrapper* get(Node* start, Node* end);
+    PathCacheWrapper& get(Node* start, Node* end);
 private:
     PathCacheWrapper* cache;
     size_t NUM_BUCKETS;

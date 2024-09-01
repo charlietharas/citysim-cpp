@@ -14,7 +14,6 @@ Node::Node() : Drawable(NODE_MIN_SIZE, NODE_N_POINTS) {
     }
 }
 
-
 bool Node::addTrain(Train* train) {
     for (int i = 0; i < NODE_N_TRAINS; i++) {
         if (trains[i] == nullptr) {
@@ -83,17 +82,8 @@ std::vector<PathWrapper> Node::reconstructPath(std::unordered_map<Node*, PathWra
     return path;
 }
 
-PathCacheWrapper* Node::getCachedPath(Node* end) {
-    PathCacheWrapper* pcw = cache.get(this, end);
-    if (pcw != nullptr && pcw->size > 0) {
-        return pcw;
-    }
-
-    return nullptr;
-}
-
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
-    PathCacheWrapper* cachedPath = getCachedPath(end);
+    PathCacheWrapper* cachedPath = &cache.get(this, end);
     if (cachedPath != nullptr) {
         std::copy(cachedPath->begin(), cachedPath->end(), destPath);
         *destPathSize = char(cachedPath->size);
@@ -111,7 +101,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
     std::unordered_map<Node*, float> score;
 
     score[this] = 0.0f;
-    this->score = score[this] + this->dist(end);
+    this->score = score[this] + dist(end);
     queue.push(this);
     queueSet.insert(this);
 

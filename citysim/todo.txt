@@ -1,4 +1,5 @@
 Optional additional extensions/features:
+- tweaks to pathfinding algorithm for better realism
 - drawing "complex lines" instead of straight lines between stations (I already have the data)
 	- making trains follow those lines
 	- giving trains basic physics (accel, decel, turning)

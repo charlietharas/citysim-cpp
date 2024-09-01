@@ -16,10 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
-    <None Include="cow.java" />
-    <None Include="lines_geom_data.csv" />
     <None Include="lines_stations.csv" />
-    <None Include="sim.java" />
     <None Include="stations_data.csv" />
   </ItemGroup>
   <ItemGroup>
@@ -41,13 +38,13 @@
     <ClInclude Include="node.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pathCache.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="train.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pathcache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -55,5 +52,23 @@
     <ClCompile Include="sim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="node.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pathcache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="citizen.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="train.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="todo.txt" />
   </ItemGroup>
 </Project>

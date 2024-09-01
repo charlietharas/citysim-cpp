@@ -139,10 +139,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include=".gitignore" />
-    <None Include="cow.java" />
-    <None Include="lines_geom_data.csv" />
     <None Include="lines_stations.csv" />
-    <None Include="sim.java" />
     <None Include="stations_data.csv" />
   </ItemGroup>
   <ItemGroup>
@@ -154,12 +151,20 @@
     <ClInclude Include="line.h" />
     <ClInclude Include="macros.h" />
     <ClInclude Include="node.h" />
-    <ClInclude Include="pathCache.h" />
+    <ClInclude Include="pathcache.h" />
     <ClInclude Include="train.h" />
     <ClInclude Include="util.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="citizen.cpp" />
+    <ClCompile Include="node.cpp" />
+    <ClCompile Include="pathcache.cpp" />
     <ClCompile Include="sim.cpp" />
+    <ClCompile Include="train.cpp" />
+    <ClCompile Include="util.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="todo.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
