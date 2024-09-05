@@ -25,7 +25,7 @@ public:
 		return path[index].node;
 	}
 	inline Node* getNextNode() {
-		if (index + 1 >= pathSize - 1) return nullptr;
+		if (index + 1 > pathSize - 1) return nullptr;
 		return path[index + 1].node;
 	}
 
@@ -33,13 +33,13 @@ public:
 		return path[index].line;
 	}
 	inline Line* getNextLine() {
-		if (index + 1 >= pathSize - 1) return nullptr;
+		if (index + 1 > pathSize - 1) return nullptr;
 		return path[index + 1].line;
 	}
 
 	std::string currentPathStr();
 
-	bool updatePositionAlongPath(float speed);
+	bool updatePositionAlongPath();
 private:
 	inline void incrCapacity() {
 		getCurrentNode()->capacity++;
@@ -73,7 +73,7 @@ public:
 
 	bool add(Node* start, Node* end);
 	bool remove(int index);
-	bool triggerCitizenUpdate(int index, float speed);
+	bool triggerCitizenUpdate(int index);
 private:
 	size_t maxSize;
 	std::vector<Citizen> vec;

@@ -1,7 +1,5 @@
 #pragma once
 
-// constexpr is for LOSERS
-
 // Graphics
 #define WINDOW_WIDTH				1000
 #define WINDOW_HEIGHT				1200
@@ -36,12 +34,6 @@
 #define MAX_CITIZENS				200000
 #define NUM_CITIZEN_WORKER_THREADS	24
 
-// Simulation speed
-#define DEFAULT_SIM_SPEED			5.0f
-#define MIN_SIM_SPEED				0.5f
-#define MAX_SIM_SPEED				10.0f
-#define SIM_SPEED_INCR				0.5f
-
 // File loading
 #define STATIONS_CSV_NUM_COLUMNS	6
 #define GEOM_CSV_NUM_COLUMNS		9
@@ -64,26 +56,18 @@
 
 // Nodes
 #define NODE_ID_SIZE				36 // size of char buffer
-#define NODE_CAPACITY				256u // cosmetic only
+constexpr unsigned int NODE_CAPACITY = 256; // cosmetic only
 #define NODE_GRID_ROWS				10
 #define NODE_GRID_COLS				12
 
-// Pathfinding
-#define NODE_N_NEIGHBORS			12
-#define NODE_N_TRAINS				8
-#define TRANSFER_MAX_DIST			8
-#define TRANSFER_PENALTY			500 // fixed penalty for transferring to another line/walking
-#define TRANSFER_PENALTY_MULTIPLIER	TRAIN_SPEED / CITIZEN_SPEED * 2 // multiplier for distance walked during walking transfers
-#define STOP_PENALTY				8 // fixed penalty for each stop
-
 // Train
 #define DEFAULT_TRAIN_STOP_SPACING	4 // spawn trains every n stops
-#define TRAIN_SPEED					1.5f
-#define TRAIN_CAPACITY				512u // citizens cannot board trains if they are at max capacity
-#define TRAIN_STOP_THRESH			1024 * TRAIN_SPEED // how long trains wait at stops
+constexpr float TRAIN_SPEED = 8.0f;
+constexpr unsigned int TRAIN_CAPACITY = 750; // citizens cannot board trains if they are at max capacity
+#define TRAIN_STOP_THRESH			512 * TRAIN_SPEED // how long trains wait at stops
 
 // Citizen
-#define CITIZEN_SPEED				0.2f
+constexpr float CITIZEN_SPEED = 1.0f;
 #define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED // how long citizens walk through stations before waiting for a train
 #define CITIZEN_PATH_SIZE			64
 #define CITIZEN_SPAWN_INIT			32000 // initial amount of citizens to spawn before simulation start
@@ -97,9 +81,17 @@
 #define CITIZEN_VEC_CULL_INAC		1000
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 
+// Pathfinding
+#define NODE_N_NEIGHBORS			12
+#define NODE_N_TRAINS				8
+constexpr float TRANSFER_MAX_DIST = 8.0f;
+constexpr float TRANSFER_PENALTY_MULTIPLIER = TRAIN_SPEED / CITIZEN_SPEED * 2; // multiplier for distance walked during walking transfers
+#define TRANSFER_PENALTY			500; // fixed penalty for transferring to another line/walking
+#define STOP_PENALTY				8; // fixed penalty for each stop
+
 // PathCache
-#define PATH_CACHE_BUCKETS			96
-#define PATH_CACHE_BUCKETS_SIZE		24
+constexpr int PATH_CACHE_BUCKETS = 96;
+constexpr int PATH_CACHE_BUCKETS_SIZE = 24;
 
 // Debugging
 #define AOK							0
@@ -108,7 +100,10 @@
 #define BENCHMARK_TICK_AMT			50000
 #define STAT_RATE					1000 // every n simulation ticks
 #define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE
-#define ERROR_MODE					true
+#define USER_INFO_MODE				true
+#define PATHFINDER_ERRORS			true
+#define TRAIN_ERRORS				false
+#define CITIZEN_SPAWN_ERRORS		false
 #define NODE_CAPACITY_WARN			512
 #define CITIZEN_DESPAWN_WARN		65536 * CITIZEN_SPEED
 #define CITIZEN_STUCK_THRESH		10 // ignore nodes with below n stuck citizens when outputting debug info

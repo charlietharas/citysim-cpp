@@ -33,5 +33,5 @@ public:
 	int getNextIndex(bool reversed = false);
 	int getPrevIndex();
 
-	void updatePositionAlongLine(float speed);
+	void updatePositionAlongLine();
 };

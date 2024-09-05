@@ -27,9 +27,8 @@ std::mt19937 gen(rd());
 std::uniform_int_distribution<int> dis;
 
 // simulation controls
-float SIM_SPEED;
 bool toggleSpawn;
-bool simRunning;
+bool simPause;
 long unsigned int simTick;
 long unsigned int renderTick;
 
@@ -102,9 +101,9 @@ void generateRandomCitizens(int spawnAmount) {
 			handledCitizens++;
 			spawnedCount++;
 		}
-		#if ERROR_MODE == true
+		#if PATHFINDER_ERRORS == true
 		else {
-			std::cout << "ERR: failed to find path between " << nodes[startNode].id << ", " << nodes[endNode].id << std::endl;
+			std::cout << "ERR: pathfinder failed to find path between " << nodes[startNode].id << ", " << nodes[endNode].id << std::endl;
 		}
 		#endif
 	}
@@ -114,47 +113,53 @@ void debugReport() {
 	std::lock_guard<std::mutex> citizensLock(citizensMutex);
 	std::cout << "Report at tick " << simTick << ":" << std::endl;
 
-	// display statuses of allocated citizens
-	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0} };
+	// display problematic path steps, statuses of allocated citizens
+	std::map<std::string, unsigned int> stuckMap;
+	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0}, {"STUCK", 0} };
 	for (int i = 0; i < citizens.size(); i++) {
 		Citizen& c = citizens[i];
-		switch (c.status) {
-		case STATUS_DESPAWNED:
-			statusMap["DSPN"]++;
-			break;
-		case STATUS_SPAWNED:
-			statusMap["SPWN"]++;
-			break;
-		case STATUS_IN_TRANSIT:
-			statusMap["MOVE"]++;
-			break;
-		case STATUS_TRANSFER:
-			statusMap["TSFR"]++;
-			break;
-		case STATUS_AT_STOP:
-			statusMap["STOP"]++;
-			break;
-		case STATUS_WALK:
-			statusMap["WALK"]++;
-			break;
+		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN && c.status != STATUS_WALK && c.status == STATUS_AT_STOP) {
+			stuckMap[c.currentPathStr()]++;
+			statusMap["STUCK"]++;
+		}
+		else {
+			switch (c.status) {
+			case STATUS_DESPAWNED:
+				statusMap["DSPN"]++;
+				break;
+			case STATUS_SPAWNED:
+				statusMap["SPWN"]++;
+				break;
+			case STATUS_IN_TRANSIT:
+				statusMap["MOVE"]++;
+				break;
+			case STATUS_TRANSFER:
+				statusMap["TSFR"]++;
+				break;
+			case STATUS_AT_STOP:
+				statusMap["STOP"]++;
+				break;
+			case STATUS_WALK:
+				statusMap["WALK"]++;
+				break;
+			}
 		}
 	}
 
 	for (auto const& x : statusMap) {
 		char buffer[8];
-		std::sprintf(buffer, "%.1f", (x.second / (float) citizens.size() * 100));
+		float second;
+		// percentages for all active citizens are shown as a %age of total active citizens
+		if (x.first == "DSPN") {
+			second = citizens.size();
+		}
+		else {
+			second = citizens.activeSize();
+		}
+		std::sprintf(buffer, "%.1f", (x.second / (float)citizens.size() * 100));
 		std::cout << x.first << ": " << x.second << "(" << buffer << "%)\t";
 	}
 	std::cout << std::endl;
-
-	// display problematic path steps
-	std::map<std::string, unsigned int> stuckMap;
-	for (int i = 0; i < citizens.size(); i++) {
-		Citizen& c = citizens[i];
-		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN) {
-			stuckMap[c.currentPathStr()]++;
-		}
-	}
 
 	bool actuallyStuck = false;
 	for (auto const& x : stuckMap) {
@@ -168,10 +173,9 @@ void debugReport() {
 		std::cout << "Citizens getting stuck at: " << std::endl;
 		for (auto const& x : stuckMap) {
 			if (x.second > CITIZEN_STUCK_THRESH) {
-				std::cout << x.first << " ( " << x.second << ")\t";
+				std::cout << x.first << " ( " << x.second << ")\n";
 			}
 		}
-		std::cout << std::endl;
 	}
 
 	// display problematic nodes
@@ -608,7 +612,7 @@ void renderingThread() {
 		{
 			// close
 			if (event.type == sf::Event::Closed) {
-				simRunning = false;
+				simPause = false;
 				doSimulation.notify_one();
 				shouldExit = true;
 				window.close();
@@ -641,8 +645,8 @@ void renderingThread() {
 						firstColor = userStartNode->getFillColor();
 					}
 					userStartNode->setFillColor(sf::Color::Cyan);
-					#if ERROR_MODE == true
-					std::cout << "User selected start " << userStartNode->id << std::endl;
+					#if USER_INFO_MODE == true
+					std::cout << "INFO: User selected start " << userStartNode->id << std::endl;
 					#endif
 					userNodesSelected++;
 					break;
@@ -653,8 +657,8 @@ void renderingThread() {
 							secondColor = userEndNode->getFillColor();
 						}
 						userEndNode->setFillColor(sf::Color::Cyan);
-						#if ERROR_MODE == true
-						std::cout << "User selected end " << userEndNode->id << std::endl;
+						#if USER_INFO_MODE == true
+						std::cout << "INFO: User selected end " << userEndNode->id << std::endl;
 						#endif
 						for (char i = 0; i < userPathSize; i++) {
 							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), userPath[i].line->color));
@@ -665,8 +669,8 @@ void renderingThread() {
 					}
 					break;
 				case 2:
-					#if ERROR_MODE == true
-					std::cout << "User cleared selection" << std::endl;
+					#if USER_INFO_MODE == true
+					std::cout << "INFO: User cleared selection" << std::endl;
 					#endif
 					userStartNode->setFillColor(firstColor);
 					userEndNode->setFillColor(secondColor);
@@ -706,17 +710,9 @@ void renderingThread() {
 				if (event.key.code == sf::Keyboard::Num3) {
 					drawTrains = !drawTrains;
 				}
-				// press - to decrease simulation speed (up to minimum)
-				if (event.key.code == sf::Keyboard::Dash && !simRunning) {
-					SIM_SPEED = std::min(std::max(SIM_SPEED - SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
-				}
-				// press = to increase simulation speed (up to maximum)
-				if (event.key.code == sf::Keyboard::Equal && !simRunning) {
-					SIM_SPEED = std::min(std::max(SIM_SPEED + SIM_SPEED_INCR, MIN_SIM_SPEED), MAX_SIM_SPEED);
-				}
 				// press p to toggle simulation pause
 				if (event.key.code == sf::Keyboard::P) {
-					simRunning = !simRunning;
+					simPause = !simPause;
 					doSimulation.notify_one();
 				}
 				// press space to spawn CUSTOM_CITIZEN_SPAWN_AMT citizens at the nearest node
@@ -751,16 +747,14 @@ void renderingThread() {
 		if (renderTick % TEXT_REFRESH_RATE == 0) {
 			size_t c = citizens.activeSize();
 			std::string speedString;
-			if (!simRunning) {
+			if (!simPause) {
 				int s = simSpeedStat[simSpeedStat.size() - 1];
 				speedString = std::to_string(s) + " ticks/sec\n";
 			}
 			else {
 				speedString = "Simulation paused (tick " + std::to_string(simTick) + ")\n";
 			}
-			char buffer[8];
-			std::sprintf(buffer, "%.1f", SIM_SPEED);
-			text.setString(std::to_string(c) + " active citizens\n" + speedString + nearestNode->id + " [" + std::to_string(nearestNode->capacity) + "]\n" + buffer);
+			text.setString(std::to_string(c) + " active citizens\n" + speedString + nearestNode->id + " [" + std::to_string(nearestNode->capacity) + "]");
 		}
 
 		if (drawTrains) {
@@ -816,7 +810,6 @@ void renderingThread() {
 	}
 }
 
-// TODO pathfinding is too slow! make faster, make better
 void pathfindingThread() {
 	std::unique_lock<std::mutex> pathsLock(pathsMutex);
 	while (!shouldExit) {
@@ -850,11 +843,12 @@ void pathfindingThread() {
 			#endif
 		}
 	}
+
+	std::cout << "Pathfinding thread shut down" << std::endl;
 }
 
 void simulationThread() {
-	SIM_SPEED = DEFAULT_SIM_SPEED;
-	simRunning = false;
+	simPause = false;
 
 	// initialize stat recorders
 	double timeElapsed = double(clock());
@@ -868,7 +862,7 @@ void simulationThread() {
 	std::unique_lock<std::mutex> simLock(simMutex);
 	while (!shouldExit) {
 		// wait if paused
-		doSimulation.wait(simLock, [] { return !simRunning; } );
+		doSimulation.wait(simLock, [] { return !simPause; } );
 		simTick++;
 
 		#if BENCHMARK_MODE == true
@@ -900,23 +894,21 @@ void simulationThread() {
 		// run simulation on trains and citizens
 		{
 			std::lock_guard<std::mutex> trainsLock(trainsMutex);
-			float trainSpeed = TRAIN_SPEED * SIM_SPEED;
 			for (int i = 0; i < VALID_TRAINS; i++) {
-				trains[i].updatePositionAlongLine(trainSpeed);
+				trains[i].updatePositionAlongLine();
 			}
 		}
 
 		{
-			std::lock_guard<std::mutex> citizensLock(citizensMutex);
-			float citizenSpeed = CITIZEN_SPEED * SIM_SPEED;
+			// std::lock_guard<std::mutex> citizensLock(citizensMutex);
 			size_t chunkSize = citizens.activeSize() / NUM_CITIZEN_WORKER_THREADS + 1;
 
 			for (int i = 0; i < NUM_CITIZEN_WORKER_THREADS; i++) {
-				pool.enqueue([i, chunkSize, citizenSpeed]() {
+				pool.enqueue([i, chunkSize]() {
 					size_t start = i * chunkSize;
 					size_t end = std::min(start + chunkSize, citizens.activeSize());
 					for (size_t ind = start; ind < end; ++ind) {
-						citizens.triggerCitizenUpdate(ind, citizenSpeed);
+						citizens.triggerCitizenUpdate(ind);
 					}
 					});
 			}
@@ -925,6 +917,7 @@ void simulationThread() {
 		}
 	}
 
+	std::cout << "Simulation thread shut down" << std::endl;
 	std::cout << std::endl << "SIM DONE!" << std::endl;
 	std::cout << "Simulation ticks elapsed: " << simTick << std::endl;
 	std::cout << "Simulation time elapsed: " << (double(clock()) - timeElapsed) / CLOCKS_PER_SEC << "s" << std::endl;
@@ -965,11 +958,11 @@ int main() {
 	if (!BENCHMARK_MODE && renThread.joinable()) {
 		renThread.join();
 	}
-	if (simThread.joinable()) {
-		simThread.join();
-	}
 	if (pathThread.joinable()) {
 		pathThread.join();
+	}
+	if (simThread.joinable()) {
+		simThread.join();
 	}
 
 	return 0;

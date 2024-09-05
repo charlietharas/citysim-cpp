@@ -35,8 +35,8 @@ int Train::getPrevIndex() {
 	return getNextIndex(true);
 }
 
-void Train::updatePositionAlongLine(float speed) {
-	timer += speed;
+void Train::updatePositionAlongLine() {
+	timer += TRAIN_SPEED;
 	char nextIndex = 0;
 	float dist;
 
@@ -65,9 +65,9 @@ void Train::updatePositionAlongLine(float speed) {
 				timer = 0;
 				status = STATUS_AT_STOP;
 			}
-			#if ERROR_MODE == true
+			#if TRAIN_ERRORS == true
 			else {
-				std::cout << "ERR failed to add [" << line->id << "] train to " << getNextStop()->id << std::endl;
+				std::cout << "ERR: failed to add [" << line->id << "] train to " << getNextStop()->id << std::endl;
 			}
 			#endif
 		}
@@ -79,9 +79,9 @@ void Train::updatePositionAlongLine(float speed) {
 				timer = 0;
 				status = STATUS_IN_TRANSIT;
 			}
-			#if ERROR_MODE == true
+			#if TRAIN_ERRORS == true
 			else {
-				std::cout << "ERR removing [" << line->id << "] train from " << getLastStop()->id << std::endl;
+				std::cout << "ERR: failed to remove [" << line->id << "] train from " << getLastStop()->id << std::endl;
 			}
 			#endif
 		}

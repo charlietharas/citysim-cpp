@@ -23,30 +23,30 @@ std::string Citizen::currentPathStr() {
 	std::strcat(sum, ",");
 	std::strcat(sum, getCurrentLine()->id);
 	std::strcat(sum, "->");
-	std::strcat(sum, getNextNode()->id);
-	std::strcat(sum, ",");
-	std::strcat(sum, getNextLine()->id);
+	if (getNextNode() != nullptr) {
+		std::strcat(sum, getNextNode()->id);
+		std::strcat(sum, ",");
+		std::strcat(sum, getNextLine()->id);
+	}
+	else {
+		std::strcat(sum, "NEXT_NODE_NULL");
+	}
 	return sum;
 }
 
 // returns true if the citizen has been despawned/is despawned
-bool Citizen::updatePositionAlongPath(float speed) {
-	if (index == pathSize - 1 || getNextNode() == nullptr) {
-		status = STATUS_DESPAWNED;
-		return true;
-	}
-
-	if (getCurrentNode() == nullptr) {
-		#if ERROR_MODE == true
-		std::cout << "ERR despawned NULLPATHREF citizen @" << int(index) << ": " << currentPathStr() << std::endl;
+bool Citizen::updatePositionAlongPath() {
+	if (getNextNode() == nullptr) {
+		#if CITIZEN_SPAWN_ERRORS == true
+		std::cout << "ERR: despawned NULLPATHREF_MISC citizen@" << int(index) << ": " << currentPathStr() << std::endl;
 		#endif
 		status = STATUS_DESPAWNED;
 		return true;
 	}
 
 	if (timer > CITIZEN_DESPAWN_THRESH) {
-		#if ERROR_MODE == true
-		std::cout << "ERR despawned TIMEOUT citizen @" << int(index) << ": " << currentPathStr() << std::endl;
+		#if CITIZEN_SPAWN_ERRORS == true
+		std::cout << "ERR: despawned TIMEOUT citizen @" << int(index) << ": " << currentPathStr() << std::endl;
 		#endif
 		if (status == STATUS_IN_TRANSIT) {
 			util::subCapacity(&currentTrain->capacity);
@@ -58,7 +58,7 @@ bool Citizen::updatePositionAlongPath(float speed) {
 		return true;
 	}
 
-	timer += speed;
+	timer += CITIZEN_SPEED;
 	float dist;
 
 	switch (status) {
@@ -78,15 +78,20 @@ bool Citizen::updatePositionAlongPath(float speed) {
 	case STATUS_WALK:
 		dist = getCurrentNode()->dist(getNextNode());
 		if (timer > dist) {
+			index++;
+			if (index == pathSize - 1) {
+				status = STATUS_DESPAWNED;
+				return true;
+			}
 			timer = 0;
-			if (getNextLine() == &WALKING_LINE) {
+			if (getCurrentLine() == &WALKING_LINE) {
 				status = STATUS_WALK;
 			}
 			else {
 				status = STATUS_TRANSFER;
 				incrCapacity();
 			}
-			index++;
+
 		}
 		return false;
 
@@ -109,7 +114,6 @@ bool Citizen::updatePositionAlongPath(float speed) {
 				index++;
 				justBoarded = true;
 			}
-
 		}
 		return false;
 
@@ -118,11 +122,6 @@ bool Citizen::updatePositionAlongPath(float speed) {
 		if (!justBoarded && currentTrain->status == STATUS_AT_STOP && currentTrain->getCurrentStop() == getCurrentNode()) {
 			timer = 0;
 			index++;
-
-			if (index == pathSize - 1) {
-				status = STATUS_DESPAWNED;
-				return true;
-			}
 
 			if (getCurrentLine() != currentTrain->line) {
 				util::subCapacity(&currentTrain->capacity);
@@ -151,6 +150,7 @@ CitizenVector::CitizenVector(size_t reserve, size_t maxS) {
 	maxSize = maxS;
 }
 
+// TODO vectorize this? offload to GPU? at the very least, batch?
 bool CitizenVector::add(Node* start, Node* end) {
 	if (inactive.size() < NUM_CITIZEN_WORKER_THREADS) {
 		if (size() > maxSize) {
@@ -173,8 +173,8 @@ bool CitizenVector::add(Node* start, Node* end) {
 			inactive.pop();
 		}
 		if (c == nullptr) {
-			#if ERROR_MODE == true
-			std::cout << "ERR found nullptr reference in inactive citizens deque" << std::endl;
+			#if CITIZEN_SPAWN_ERRORS == true
+			std::cout << "ERR: found nullptr reference in CitizenVector stack" << std::endl;
 			#endif
 			return false;
 		}
@@ -198,11 +198,11 @@ bool CitizenVector::remove(int index) {
 	return true;
 }
 
-bool CitizenVector::triggerCitizenUpdate(int index, float speed) {
+bool CitizenVector::triggerCitizenUpdate(int index) {
 	if (vec[index].status == STATUS_DESPAWNED) {
 		return true;
 	}
-	if (vec[index].updatePositionAlongPath(speed)) {
+	if (vec[index].updatePositionAlongPath()) {
 		remove(index);
 		return true;
 	}

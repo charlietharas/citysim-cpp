@@ -117,8 +117,15 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             }
             size_t pathSize = path.size();
             if (pathSize > CITIZEN_PATH_SIZE) {
-                #if ERROR_MODE == true
-                std::cout << "ERR encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
+                #if PATHFINDER_ERRORS == true
+                std::cout << "ERR: pathfinder encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
+                #endif
+                return false;
+            }
+
+            if (path[pathSize - 1].node == NULL) {
+                #if PATHFINDER_ERRORS == true
+                std::cout << "ERR: pathfinder threw out path with incorrect size " << pathSize << std::endl;
                 #endif
                 return false;
             }
@@ -128,7 +135,8 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
             cache.put(this, end, destPath, pathSize, false);
             cache.put(end, this, destPath, pathSize, true); 
-            // yes, this could be made more (~twice as) memory efficient by reversing on cache get(), but that code was much more annoying to write
+            // yes, this could be made more (2x) memory efficient by reversing on cache get(), but that code was much more annoying to write
+            // TODO write this code ^
             // oh well!
 
             return true;
@@ -146,10 +154,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             float aggregateScore = score[current] + current->weights[i];
 
             // anti-transfer heuristic
-
-
-
-            // FIXME this isn't working as intended
+            // TODO FIXME this isn't working as intended
             if (from.find(neighbor) != from.end() && from[neighbor].line != line) {
                 aggregateScore += TRANSFER_PENALTY;
             }
