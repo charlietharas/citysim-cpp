@@ -91,7 +91,7 @@ constexpr float TRANSFER_PENALTY_MULTIPLIER = TRAIN_SPEED / CITIZEN_SPEED * 2; /
 
 // PathCache
 constexpr int PATH_CACHE_BUCKETS = 96;
-constexpr int PATH_CACHE_BUCKETS_SIZE = 24;
+constexpr int PATH_CACHE_BUCKETS_SIZE = 128;
 
 // Debugging
 #define AOK							0

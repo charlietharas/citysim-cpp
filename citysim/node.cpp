@@ -4,6 +4,10 @@
 
 PathCache cache = PathCache(PATH_CACHE_BUCKETS, PATH_CACHE_BUCKETS_SIZE);
 
+int pathRequests;
+int pathCacheHits;
+int pathFails;
+
 Node::Node() : Drawable(NODE_MIN_SIZE, NODE_N_POINTS) {
     numNeighbors = 0;
     for (int i = 0; i < NODE_N_NEIGHBORS; i++) {
@@ -84,13 +88,12 @@ std::vector<PathWrapper> Node::reconstructPath(std::unordered_map<Node*, PathWra
 
 // TODO optimize pathfinding
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
+    pathRequests++;
     PathCacheWrapper& cachedPath = cache.get(this, end);
     if (cachedPath.size > 0) {
         std::copy(cachedPath.begin(), cachedPath.end(), destPath);
         *destPathSize = char(cachedPath.size);
-        if (cachedPath.size < CITIZEN_PATH_SIZE) {
-            destPath[cachedPath.size] = PathWrapper();
-        }
+        pathCacheHits++;
         return true;
     }
 
@@ -168,5 +171,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             }
         }
     }
+    pathFails++;
     return false; // no path found
 }

@@ -37,6 +37,9 @@ unsigned int handledCitizens;
 std::vector<int> activeCitizensStat;
 std::vector<double> clockStat;
 std::vector<int> simSpeedStat;
+extern int pathRequests;
+extern int pathCacheHits;
+extern int pathFails;
 
 // node grid
 int NODE_GRID_ROW_SIZE;
@@ -147,7 +150,6 @@ void debugReport() {
 	}
 
 	for (auto const& x : statusMap) {
-		char buffer[8];
 		float second;
 		// percentages for all active citizens are shown as a %age of total active citizens
 		if (x.first == "DSPN") {
@@ -156,8 +158,9 @@ void debugReport() {
 		else {
 			second = citizens.activeSize();
 		}
-		std::sprintf(buffer, "%.1f", (x.second / (float)citizens.size() * 100));
-		std::cout << x.first << ": " << x.second << "(" << buffer << "%)\t";
+		std::cout << x.first << ": " << x.second << "=" << std::flush;
+		std::printf("%.1f", (x.second / (float)citizens.size() * 100));
+		std::cout << "%\t" << std::flush;
 	}
 	std::cout << std::endl;
 
@@ -188,6 +191,16 @@ void debugReport() {
 		}
 	}
 	if (foundLargeNode) std::cout << std::endl;
+
+	// display node pathfinding diagnostics
+	std::cout << "Patch cache hit rate: " << pathCacheHits << " hits=" << std::flush;
+	std::printf("%.2f", (float)(pathCacheHits) / pathRequests);
+	std::cout << "%, fail rate: " << pathFails << " fails=" << std::flush;
+	std::printf("%.2f", (float)(pathFails) / pathRequests);
+	std::cout << "% for " << pathRequests << " requests" << std::endl << std::flush;
+	pathRequests = 0;
+	pathCacheHits = 0;
+	pathFails = 0;
 
 	// display citizen vector information
 	std::cout << "Citizen vector size=" << citizens.size() << " active=" << citizens.activeSize() << " inactive=" << citizens.size() - citizens.activeSize() << " cap=" << citizens.capacity() << " max=" << citizens.max() << std::endl;
