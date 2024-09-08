@@ -458,7 +458,6 @@ int init() {
 
 		// generate train objects
 		std::string idStr = line.id;
-		// TODO custom and accurate train counts, speeds (https://new.mta.info/schedules, The Weekender)
 		int spacing = idStr.find("A_") == std::string::npos ? DEFAULT_TRAIN_STOP_SPACING / 2 : DEFAULT_TRAIN_STOP_SPACING; // avoid excessive generation for the A train
 		for (int k = 0; k < j; k+= DEFAULT_TRAIN_STOP_SPACING) {
 			// generate 2 trains (one going backward, one forward) except if at first/last stop

@@ -82,6 +82,7 @@ std::vector<PathWrapper> Node::reconstructPath(std::unordered_map<Node*, PathWra
     return path;
 }
 
+// TODO optimize pathfinding
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
     PathCacheWrapper& cachedPath = cache.get(this, end);
     if (cachedPath.size > 0) {
@@ -135,9 +136,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
             cache.put(this, end, destPath, pathSize, false);
             cache.put(end, this, destPath, pathSize, true); 
-            // yes, this could be made more (2x) memory efficient by reversing on cache get(), but that code was much more annoying to write
-            // TODO write this code ^
-            // oh well!
 
             return true;
         }
@@ -154,7 +152,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             float aggregateScore = score[current] + current->weights[i];
 
             // anti-transfer heuristic
-            // TODO FIXME this isn't working as intended
             if (from.find(neighbor) != from.end() && from[neighbor].line != line) {
                 aggregateScore += TRANSFER_PENALTY;
             }

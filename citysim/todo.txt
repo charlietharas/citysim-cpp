@@ -1,5 +1,9 @@
-Optional additional extensions/features:
+(Hopefully) future additional extensions/features:
+- custom and accurate train counts, speeds (from https://new.mta.info/schedules, The Weekender)
 - tweaks to pathfinding algorithm for better realism
+	- dynamically update weights for algorithm using train ETAs (incorporate headways)
+		- use D*?
+	- adjust algorithm hyperparameters (and add variance to individual agent heuristics) for realistic choice-making
 - drawing "complex lines" instead of straight lines between stations (I already have the data)
 	- making trains follow those lines
 	- giving trains basic physics (accel, decel, turning)

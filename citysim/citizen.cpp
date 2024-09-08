@@ -150,7 +150,6 @@ CitizenVector::CitizenVector(size_t reserve, size_t maxS) {
 	maxSize = maxS;
 }
 
-// TODO vectorize this? offload to GPU? at the very least, batch?
 bool CitizenVector::add(Node* start, Node* end) {
 	if (inactive.size() < NUM_CITIZEN_WORKER_THREADS) {
 		if (size() > maxSize) {
