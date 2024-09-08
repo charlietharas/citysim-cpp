@@ -32,7 +32,7 @@
 #define MAX_NODES					512
 #define MAX_TRAINS					1024
 #define MAX_CITIZENS				200000
-#define NUM_CITIZEN_WORKER_THREADS	24
+#define NUM_CITIZEN_WORKER_THREADS	32
 
 // File loading
 #define STATIONS_CSV_NUM_COLUMNS	6
@@ -72,13 +72,11 @@ constexpr float CITIZEN_SPEED = 1.0f;
 #define CITIZEN_PATH_SIZE			64
 #define CITIZEN_SPAWN_INIT			32000 // initial amount of citizens to spawn before simulation start
 #define CITIZEN_SPAWN_FREQ			1024 // spawn citizens every n simulation ticks
-#define CITIZEN_SPAWN_METHOD		0 // 0 to match target amount, 1 for fixed amount
+#define CITIZEN_SPAWN_METHOD		0 // 0 to match target amount, 1 for fixed amount (CITIZEN_SPAWN_AMT)
 #define CITIZEN_SPAWN_AMT			2000
-#define TARGET_CITIZEN_COUNT		60000
+#define TARGET_CITIZEN_COUNT		40000
 #define CITIIZEN_VEC_RESERVE		TARGET_CITIZEN_COUNT * 2
 #define CUSTOM_CITIZEN_SPAWN_AMT	250
-#define CITIZEN_VEC_CULL_REMOVED	2000
-#define CITIZEN_VEC_CULL_INAC		1000
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 
 // Pathfinding
@@ -90,8 +88,8 @@ constexpr float TRANSFER_PENALTY_MULTIPLIER = TRAIN_SPEED / CITIZEN_SPEED * 2; /
 #define STOP_PENALTY				8; // fixed penalty for each stop
 
 // PathCache
-constexpr int PATH_CACHE_BUCKETS = 96;
-constexpr int PATH_CACHE_BUCKETS_SIZE = 128;
+constexpr int PATH_CACHE_BUCKETS = 160;
+constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
 
 // Debugging
 #define AOK							0
@@ -101,8 +99,8 @@ constexpr int PATH_CACHE_BUCKETS_SIZE = 128;
 #define STAT_RATE					1000 // every n simulation ticks
 #define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE
 #define USER_INFO_MODE				true
-#define PATHFINDER_ERRORS			true
-#define TRAIN_ERRORS				false
+#define PATHFINDER_ERRORS			false
+#define TRAIN_ERRORS				true
 #define CITIZEN_SPAWN_ERRORS		false
 #define NODE_CAPACITY_WARN			512
 #define CITIZEN_DESPAWN_WARN		65536 * CITIZEN_SPEED

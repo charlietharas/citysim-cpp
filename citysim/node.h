@@ -30,7 +30,6 @@ public:
     unsigned short int gridPos;
     unsigned short int level;
     unsigned long int totalRiders;
-    std::vector<PathWrapper> shortcuts;
     PathWrapper neighbors[NODE_N_NEIGHBORS];
     float weights[NODE_N_NEIGHBORS];
     Train* trains[NODE_N_TRAINS];
@@ -69,8 +68,6 @@ public:
     }
     unsigned int numTrains();
 
-    std::vector<PathWrapper> reconstructPath(std::unordered_map<Node*, PathWrapper>& from, Node* end);
-    PathCacheWrapper& getCachedPath(Node* end);
     static std::vector<PathWrapper> bidirectionalAStar(Node* start, Node* end);
     bool findPath(Node* end, PathWrapper* destPath, char* destPathSize);
 };

@@ -73,7 +73,7 @@ public:
 
 	bool add(Node* start, Node* end);
 	bool remove(int index);
-	bool triggerCitizenUpdate(int index);
+	bool triggerCitizenUpdate(int index, std::vector<int>& toDelete);
 private:
 	size_t maxSize;
 	std::vector<Citizen> vec;

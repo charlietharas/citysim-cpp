@@ -60,6 +60,9 @@ bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s, bool reverseP
     for (int i = 0; i < BUCKET_SIZE; i++) {
         int ind = bucketInd + i;
         int lru = cache[ind].lru;
+        if (cache[ind].startNode == start && cache[ind].endNode == end) {
+            return false;
+        }
         if (lru == -1) {
             cache[ind].set(start, end, p, s, 0, reversePath);
             return false;

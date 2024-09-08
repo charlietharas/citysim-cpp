@@ -59,7 +59,8 @@ CitizenVector citizens(CITIIZEN_VEC_RESERVE, MAX_CITIZENS);
 std::mutex trainsMutex; // locks trains array for drawing/simulating
 std::mutex pathsMutex; // pause helper
 std::mutex customCitizenSpawnMutex; // pause helper
-extern std::mutex citizensMutex; // see citizens.cpp
+extern std::mutex blockStack; // see citizen.cpp
+extern std::mutex citizensMutex; // see citizen.cpp
 std::atomic<bool> customSpawnCitizens(false); // pause helper
 std::atomic<bool> justDidPathfinding(false); // pause helper
 std::atomic<bool> shouldExit(false); // global thread control
@@ -121,12 +122,11 @@ void debugReport() {
 	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0}, {"STUCK", 0} };
 	for (int i = 0; i < citizens.size(); i++) {
 		Citizen& c = citizens[i];
-		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN && c.status != STATUS_WALK && c.status == STATUS_AT_STOP) {
+		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN && c.status != STATUS_WALK) {
 			stuckMap[c.currentPathStr()]++;
 			statusMap["STUCK"]++;
 		}
-		else {
-			switch (c.status) {
+		switch (c.status) {
 			case STATUS_DESPAWNED:
 				statusMap["DSPN"]++;
 				break;
@@ -145,7 +145,6 @@ void debugReport() {
 			case STATUS_WALK:
 				statusMap["WALK"]++;
 				break;
-			}
 		}
 	}
 
@@ -486,11 +485,9 @@ int init() {
 			}
 		}
 	}
-
-	std::cout << "Processed remaining node data" << std::endl;
+	std::cout << "Generated " << VALID_TRAINS << " trains" << std::endl;
 	std::cout << "Generated " << lineNeighbors << " line neighbors" << std::endl;
 	std::cout << "Total neighbors: " << transferNeighbors + lineNeighbors << std::endl;
-	std::cout << "Generated " << VALID_TRAINS << " trains" << std::endl;
 
 	// enable continuous citizen spawning by default (necessary to generate initial citizen batch)
 	toggleSpawn = true;
@@ -869,6 +866,8 @@ void simulationThread() {
 	simSpeedStat.reserve(BENCHMARK_RESERVE);
 
 	CitizenThreadPool pool(NUM_CITIZEN_WORKER_THREADS);
+
+	std::cout << "Initializing " << NUM_CITIZEN_WORKER_THREADS << " threads for citizen processing" << std::endl;
 	
 	std::mutex simMutex;
 	std::unique_lock<std::mutex> simLock(simMutex);
@@ -912,15 +911,20 @@ void simulationThread() {
 		}
 
 		{
-			// std::lock_guard<std::mutex> citizensLock(citizensMutex);
 			size_t chunkSize = citizens.activeSize() / NUM_CITIZEN_WORKER_THREADS + 1;
-
 			for (int i = 0; i < NUM_CITIZEN_WORKER_THREADS; i++) {
 				pool.enqueue([i, chunkSize]() {
+					std::vector<int> toDelete;
 					size_t start = i * chunkSize;
 					size_t end = std::min(start + chunkSize, citizens.activeSize());
 					for (size_t ind = start; ind < end; ++ind) {
-						citizens.triggerCitizenUpdate(ind);
+						citizens.triggerCitizenUpdate(ind, toDelete);
+					}
+					{
+						std::lock_guard<std::mutex> stackLock(blockStack);
+						for (int& i : toDelete) {
+							citizens.remove(i);
+						}
 					}
 					});
 			}
@@ -942,6 +946,7 @@ void simulationThread() {
 	doPathfinding.notify_one();
 }
 
+// TODO problems: simulation can get stuck (mutex issue, possibly blockStack), pathfinding speed & caching improvements
 int main() {
 	// initialize memory
 	double progStartTime = double(clock());

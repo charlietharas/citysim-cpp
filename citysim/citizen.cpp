@@ -178,8 +178,10 @@ bool CitizenVector::add(Node* start, Node* end) {
 			return false;
 		}
 		if (!start->findPath(end, c->path, &c->pathSize)) {
-			std::lock_guard<std::mutex> stackLock(blockStack);
-			inactive.push(c);
+			{
+				std::lock_guard<std::mutex> stackLock(blockStack);
+				inactive.push(c);
+			}
 			return false;
 		}
 
@@ -189,20 +191,17 @@ bool CitizenVector::add(Node* start, Node* end) {
 }
 
 bool CitizenVector::remove(int index) {
-	vec[index].status = STATUS_DESPAWNED;
-	{
-		std::lock_guard<std::mutex> stackLock(blockStack);
-		inactive.push(&vec[index]);
-	}
+	inactive.push(&vec[index]);
 	return true;
 }
 
-bool CitizenVector::triggerCitizenUpdate(int index) {
+bool CitizenVector::triggerCitizenUpdate(int index, std::vector<int>& toDelete) {
 	if (vec[index].status == STATUS_DESPAWNED) {
 		return true;
 	}
 	if (vec[index].updatePositionAlongPath()) {
-		remove(index);
+		vec[index].status = STATUS_DESPAWNED;
+		toDelete.push_back(index);
 		return true;
 	}
 	return false;
