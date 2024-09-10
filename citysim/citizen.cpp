@@ -85,7 +85,7 @@ bool Citizen::updatePositionAlongPath() {
 				}
 			}
 			statusForward = nextInd > currentInd ? STATUS_FORWARD : STATUS_BACKWARD;
-			// TODO fix termini bug
+			if (currentInd == 0 || currentInd == currentLine->size - 1) statusForward = STATUS_AMBIVALENT;
 			status = STATUS_AT_STOP;
 		}
 		return false;
@@ -93,7 +93,7 @@ bool Citizen::updatePositionAlongPath() {
 	case STATUS_AT_STOP:
 		for (int i = 0; i < currentNode->numTrains(); i++) {
 			Train* t = currentNode->trains[i];
-			if (t != nullptr && t->statusForward == statusForward && t->line == currentLine && t->capacity < TRAIN_CAPACITY) {
+			if (t != nullptr && t->line == currentLine && t->capacity < TRAIN_CAPACITY && (t->statusForward == statusForward || statusForward == STATUS_AMBIVALENT)) {
 				util::subCapacity(&currentNode->capacity);
 				MOVE;
 				status = STATUS_BOARDED;
@@ -137,7 +137,7 @@ bool Citizen::updatePositionAlongPath() {
 }
 
 bool Citizen::cull() {
-	if (timer > CITIZEN_DESPAWN_THRESH) {
+	if (timer > CITIZEN_DESPAWN_THRESH && status != STATUS_DESPAWNED) {
 		#if CITIZEN_SPAWN_ERRORS == true
 		std::cout << "ERR: despawned TIMEOUT citizen @" << int(index) << ": " << currentPathStr() << std::endl;
 		#endif

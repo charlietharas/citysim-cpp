@@ -1,5 +1,4 @@
 Necessary short term improvements:
-- prevent mutex conflict that occasionally locks simulation
 - investigate very occasional random crashes soon after launch
 - substantially improve pathfinding performance
 	- increase cache utilization & performance

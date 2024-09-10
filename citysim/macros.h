@@ -32,7 +32,7 @@
 #define MAX_NODES					512
 #define MAX_TRAINS					1024
 #define MAX_CITIZENS				200000
-#define NUM_CITIZEN_WORKER_THREADS	32
+#define NUM_CITIZEN_WORKER_THREADS	16
 #define DISTANCE_SCALE				128
 
 // File loading
@@ -49,6 +49,7 @@
 #define STATUS_BOARDED				6
 #define STATUS_FORWARD				1
 #define STATUS_BACKWARD				0
+#define STATUS_AMBIVALENT			3
 #define STATUS_HIGHLIGHTED			2
 
 // Line

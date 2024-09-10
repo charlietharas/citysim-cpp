@@ -60,7 +60,6 @@ std::mutex trainsMutex; // locks trains array for drawing/simulating
 std::mutex pathsMutex; // pause helper
 std::mutex customCitizenSpawnMutex; // pause helper
 extern std::mutex blockStack; // see citizen.cpp
-extern std::mutex citizensMutex; // see citizen.cpp
 std::atomic<bool> customSpawnCitizens(false); // pause helper
 std::atomic<bool> justDidPathfinding(false); // pause helper
 std::atomic<bool> shouldExit(false); // global thread control
@@ -114,7 +113,6 @@ void generateRandomCitizens(int spawnAmount) {
 }
 
 void debugReport() {
-	std::lock_guard<std::mutex> citizensLock(citizensMutex);
 	std::cout << "Report at tick " << simTick << ":" << std::endl;
 
 	// display problematic path steps, statuses of allocated citizens
@@ -585,6 +583,10 @@ void renderingThread() {
 	clockStat.push_back(1);
 	clockStat.push_back(2);
 
+	// default render text
+	Node NEARBY_NODE = Node();
+	strcpy(NEARBY_NODE.id, "No nearby station");
+
 	while (window.isOpen() && !shouldExit) {
 		renderTick++;
 
@@ -592,8 +594,8 @@ void renderingThread() {
 		sf::Time frameStart = clock.getElapsedTime();
 
 		// get nearest node (uses node grid)
-		float minDist = WINDOW_WIDTH + WINDOW_HEIGHT;
-		nearestNode = &nodes[0];
+		float minDist = FLT_MAX;
+		nearestNode = &NEARBY_NODE;
 		// calculate relative mouse position (in terms of window units, scaled to zoom + pan)
 		Vector2f relMousePos = Vector2f(sf::Mouse::getPosition(window)) + view.getCenter() - Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
 		relMousePos = view.getCenter() + (relMousePos - view.getCenter()) * simZoom;
@@ -620,7 +622,7 @@ void renderingThread() {
 			// close
 			if (event.type == sf::Event::Closed) {
 				simPause = false;
-				doSimulation.notify_one();
+				doSimulation.notify_all();
 				shouldExit = true;
 				window.close();
 			}
@@ -730,7 +732,7 @@ void renderingThread() {
 				// press p to toggle simulation pause
 				if (event.key.code == sf::Keyboard::P) {
 					simPause = !simPause;
-					doSimulation.notify_one();
+					doSimulation.notify_all();
 				}
 				// press space to spawn CUSTOM_CITIZEN_SPAWN_AMT citizens at the nearest node
 				if (event.key.code == sf::Keyboard::Space) {
@@ -934,12 +936,14 @@ void simulationThread() {
 								toDelete.push_back(ind);
 							}
 							if (doCull) {
-								cit.cull();
+								if (cit.cull()) {
+									toDelete.push_back(ind);
+								}
 							}
 						}
 					}
 					{
-						std::lock_guard<std::mutex> stackLock(blockStack);
+						std::lock_guard<std::mutex> citizenLock(blockStack);
 						for (int& i : toDelete) {
 							citizens.remove(i);
 						}
