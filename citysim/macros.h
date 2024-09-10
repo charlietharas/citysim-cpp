@@ -83,15 +83,12 @@ constexpr float CITIZEN_SPEED = 1.0f;
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 
 // Pathfinding
-#define NUM_LINES_THRESH			4
-#define RIDERSHIP_THRESH			20000
-#define DISTANCE_THRESH				TRANSFER_MAX_DIST * 16 * DISTANCE_SCALE
-#define NODE_N_NEIGHBORS			64
+#define NODE_N_NEIGHBORS			16
 #define NODE_N_TRAINS				8
 constexpr float TRANSFER_MAX_DIST = 8.0f;
 constexpr float TRANSFER_PENALTY_MULTIPLIER = TRAIN_SPEED / CITIZEN_SPEED * 2; // multiplier for distance walked during walking transfers
-constexpr int TRANSFER_PENALTY = 500; // fixed penalty for transferring to another line/walking
-constexpr int STOP_PENALTY = 8; // fixed penalty for each stop
+constexpr int TRANSFER_PENALTY = DISTANCE_SCALE * 50; // fixed penalty for transferring to another line/walking
+constexpr int STOP_PENALTY = DISTANCE_SCALE * 4; // fixed penalty for each stop
 
 // PathCache
 constexpr int PATH_CACHE_BUCKETS = 160;
