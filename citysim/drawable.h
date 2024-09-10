@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include "macros.h"
 
 typedef sf::Vector2f Vector2f;
 
@@ -25,12 +26,12 @@ public:
 
 	inline float dist(Drawable* other) {
 		Vector2f delta = other->getPosition() - getPosition();
-		return sqrt(delta.x * delta.x + delta.y * delta.y);
+		return sqrt(delta.x * delta.x + delta.y * delta.y) * DISTANCE_SCALE;
 	}
 
 	inline float dist(float x, float y) {
 		Vector2f delta = Vector2f(x, y) - getPosition();
-		return sqrt(delta.x * delta.x + delta.y * delta.y);
+		return sqrt(delta.x * delta.x + delta.y * delta.y) * DISTANCE_SCALE;
 	}
 
 	void updateRadius(float radius) {

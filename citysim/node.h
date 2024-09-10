@@ -30,6 +30,7 @@ public:
     unsigned short int gridPos;
     unsigned short int level;
     unsigned long int totalRiders;
+    char numLines;
     PathWrapper neighbors[NODE_N_NEIGHBORS];
     float weights[NODE_N_NEIGHBORS];
     Train* trains[NODE_N_TRAINS];
@@ -38,8 +39,8 @@ public:
 
     bool addTrain(Train* train);
     bool removeTrain(Train* train);
-    bool addNeighbor(PathWrapper& neighbor, float weight);
-    bool removeNeighbor(PathWrapper& neighbor);
+    bool addNeighbor(const PathWrapper& neighbor, float weight);
+    bool removeNeighbor(const PathWrapper& neighbor);
 
     inline void setGridPos(char x, char y) {
         gridPos = x << 8 | y;
@@ -66,7 +67,7 @@ public:
         char y = gridY();
         return y < NODE_GRID_COLS - 1 ? y + 1 : y;
     }
-    unsigned int numTrains();
+    char numTrains();
 
     static std::vector<PathWrapper> bidirectionalAStar(Node* start, Node* end);
     bool findPath(Node* end, PathWrapper* destPath, char* destPathSize);
