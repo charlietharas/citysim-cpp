@@ -6,7 +6,7 @@ Necessary short term improvements:
 	- path contraction (to POIs/line nodes) so long as it improves performance
 	- restrict cache puts to complex paths?
 - substantially improve citizen update loop performance
-	- delay updates/checks on citizens that aren't expected to get to their destination for a while (move to different data structure?)
+	- delay updates/checks on citizens that aren't expected to get to their destination for a while (priority queue? move to different data structure?)
 	- contract citizen paths post-generation?
 	- can anything be vectorized?
 
