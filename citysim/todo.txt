@@ -1,8 +1,15 @@
 Necessary short term improvements:
-- dramatically improve pathfinding performance
-- dramatically improve citizen update performance
-- restrict cache puts
-- multithreaded pathfinding? either internally (each direction=a thread) or externally (several pathfinders active simultaneously)
+- prevent mutex conflict that occasionally locks simulation
+- investigate very occasional random crashes soon after launch
+- substantially improve pathfinding performance
+	- increase cache utilization & performance
+	- multithreaded pathfinding? either internally (multithreaded bidirectional) or externally (several pathfinders active simultaneously)
+	- path contraction (to POIs/line nodes) so long as it improves performance
+	- restrict cache puts to complex paths?
+- substantially improve citizen update loop performance
+	- delay updates/checks on citizens that aren't expected to get to their destination for a while (move to different data structure?)
+	- contract citizen paths post-generation?
+	- can anything be vectorized?
 
 Possibilities for extension:
 - custom and accurate train counts, speeds (from https://new.mta.info/schedules, The Weekender)

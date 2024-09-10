@@ -964,7 +964,6 @@ void simulationThread() {
 	doPathfinding.notify_one();
 }
 
-// TODO problems: simulation can get stuck (mutex issue, possibly blockStack), pathfinding speed & caching improvements
 int main() {
 	// initialize memory
 	double progStartTime = double(clock());

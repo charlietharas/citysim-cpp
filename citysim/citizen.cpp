@@ -85,6 +85,7 @@ bool Citizen::updatePositionAlongPath() {
 				}
 			}
 			statusForward = nextInd > currentInd ? STATUS_FORWARD : STATUS_BACKWARD;
+			// TODO fix termini bug
 			status = STATUS_AT_STOP;
 		}
 		return false;
