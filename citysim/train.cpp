@@ -52,8 +52,8 @@ void Train::updatePositionAlongLine() {
 		}
 
 		// linearly interpolate position
-		if (statusForward == STATUS_FORWARD && index == line->size - 1) statusForward = STATUS_BACK;
-		if (statusForward == STATUS_BACK && index == 0) statusForward = STATUS_FORWARD;
+		if (statusForward == STATUS_FORWARD && index == line->size - 1) statusForward = STATUS_BACKWARD;
+		if (statusForward == STATUS_BACKWARD && index == 0) statusForward = STATUS_FORWARD;
 		nextIndex = getNextIndex();
 		setPosition(getStop(index)->lerp(timer / dist, getStop(nextIndex)));
 

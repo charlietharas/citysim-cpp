@@ -38,10 +38,10 @@ bool Node::removeTrain(Train* train) {
     return false;
 }
 
-bool Node::addNeighbor(PathWrapper& neighbor, float weight) {
+bool Node::addNeighbor(const PathWrapper& neighbor, float weight) {
     for (int i = 0; i < NODE_N_NEIGHBORS; i++) {
-        if (neighbors[i].node == neighbor.node) {
-            break;
+        if (neighbors[i].node == neighbor.node && neighbors[i].line == neighbor.line) {
+            return false;
         }
         if (neighbors[i].node == nullptr) {
             neighbors[i] = neighbor;
@@ -50,10 +50,11 @@ bool Node::addNeighbor(PathWrapper& neighbor, float weight) {
             return true;
         }
     }
+    std::cout << "Too big @" << id << std::endl;
     return false;
 }
 
-bool Node::removeNeighbor(PathWrapper& neighbor) {
+bool Node::removeNeighbor(const PathWrapper& neighbor) {
     for (int i = 0; i < NODE_N_NEIGHBORS; i++) {
         if (neighbors[i].node == neighbor.node && neighbors[i].line == neighbor.line) {
             neighbors[i].node = nullptr;
@@ -65,7 +66,7 @@ bool Node::removeNeighbor(PathWrapper& neighbor) {
     return false;
 }
 
-unsigned int Node::numTrains() {
+char Node::numTrains() {
     int c = 0;
     for (int i = 0; i < NODE_N_TRAINS; i++) {
         if (trains[i] != nullptr) {
@@ -165,7 +166,7 @@ std::vector<PathWrapper> Node::bidirectionalAStar(Node* start, Node* end) {
         current = forwardPrev[current].node;
     }
     std::reverse(path.begin(), path.end());
-
+    
     int revInd = path.size();
     path.push_back({ meetingNode, nullptr });
 
@@ -175,9 +176,7 @@ std::vector<PathWrapper> Node::bidirectionalAStar(Node* start, Node* end) {
         current = backwardPrev[current].node;
     }
 
-    for (int i = revInd; i < path.size()-1; i++) {
-        path[i].line = path[i + 1].line;
-    }
+    path[revInd].line = path[revInd - 1].line;
 
     return path;
 }
@@ -205,7 +204,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         return false;
     }
 
-    std::copy(path.begin(), path.end(), destPath);
+    std::reverse_copy(path.begin(), path.end(), destPath);
     *destPathSize = (char)pathSize;
 
     cache.put(this, end, destPath, pathSize, false);

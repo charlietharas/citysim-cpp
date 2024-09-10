@@ -14,37 +14,47 @@ public:
 	char status;
 	char index;
 	char pathSize;
-	bool justBoarded;
+	char statusForward;
+	float dist;
 	Train* currentTrain;
+	Node* currentNode;
+	Line* currentLine;
+	Node* nextNode;
 	PathWrapper path[CITIZEN_PATH_SIZE]; // path.line[i] is used to travel between path.node[i] and path.node[i+1]
 
-	Citizen();
 	void reset();
-
-	inline Node* getCurrentNode() {
-		return path[index].node;
-	}
-	inline Node* getNextNode() {
-		if (index + 1 > pathSize - 1) return nullptr;
-		return path[index + 1].node;
-	}
-
-	inline Line* getCurrentLine() {
-		return path[index].line;
-	}
-	inline Line* getNextLine() {
-		if (index + 1 > pathSize - 1) return nullptr;
-		return path[index + 1].line;
-	}
-
 	std::string currentPathStr();
 
-	bool updatePositionAlongPath();
-private:
-	inline void incrCapacity() {
-		getCurrentNode()->capacity++;
-		getCurrentNode()->totalRiders++;
+	inline bool moveDownPath() {
+		if (++index >= pathSize - 1) {
+			status = STATUS_DESPAWNED;
+			return true;
+		}
+		timer = 0;
+		currentNode = path[index].node;
+		currentLine = path[index].line;
+		nextNode = path[index + 1].node;
+		return false;
 	}
+
+	inline void switch_WALK() {
+		status = STATUS_WALK;
+		if (nextNode == nullptr) {
+			status = STATUS_DESPAWNED;
+		}
+		else {
+			dist = currentNode->dist(nextNode);
+		}
+	}
+
+	inline void switch_TRANSFER() {
+		status = STATUS_TRANSFER;
+		currentNode->capacity++;
+		currentNode->totalRiders++;
+	}
+
+	bool updatePositionAlongPath();
+	bool cull();
 };
 
 class CitizenVector {
@@ -73,7 +83,6 @@ public:
 
 	bool add(Node* start, Node* end);
 	bool remove(int index);
-	bool triggerCitizenUpdate(int index, std::vector<int>& toDelete);
 private:
 	size_t maxSize;
 	std::vector<Citizen> vec;

@@ -1,4 +1,10 @@
-(Hopefully) future additional extensions/features:
+Necessary short term improvements:
+- dramatically improve pathfinding performance
+- dramatically improve citizen update performance
+- restrict cache puts
+- multithreaded pathfinding? either internally (each direction=a thread) or externally (several pathfinders active simultaneously)
+
+Possibilities for extension:
 - custom and accurate train counts, speeds (from https://new.mta.info/schedules, The Weekender)
 - tweaks to pathfinding algorithm for better realism
 	- dynamically update weights for algorithm using train ETAs (incorporate headways)
@@ -10,5 +16,4 @@
 		- or at least precompute this for realistic headways
 - randomized delays and train backups/queues
 - schedule switching (weekend/late-night/etc.)
-- enable citizens to travel between "custom" nodes to simulate walking into the system from non-station endpoints
-- import bus routes (big)
+- incorporate other transit modes (e.g. bus)

@@ -316,7 +316,8 @@ int init() {
 	VALID_LINES = row;
 	std::cout << "Processed " << VALID_LINES << " lines" << std::endl;
 
-	// parse [numerID, id, x, y, _, ridership] to generate nodes
+
+	// parse [numerID, id, x, y, numLines, ridership] to generate nodes
 	std::ifstream stationsCSV("stations_data.csv");
 	if (!stationsCSV.is_open()) {
 		std::cerr << "Error opening stations_data.csv" << std::endl;
@@ -347,7 +348,8 @@ int init() {
 			case 3: // y coordinate
 				nodesY[row] = (std::stof(cell));
 				break;
-			case 4: // can ignore lines column
+			case 4: // number of lines associated with this node
+				node.numLines = std::count(cell.begin(), cell.end(), '-') + 1;
 				break;
 			case 5: // ridership (daily, 2019)
 				node.ridership = std::stoi(cell);
@@ -424,12 +426,10 @@ int init() {
 		for (int i = node.lowerGridX(); i <= node.upperGridX(); i++) {
 			for (int j = node.lowerGridY(); j <= node.upperGridY(); j++) {
 				for (Node* other : nodeGrid[i][j]) {
-					float dist = node.dist(other);
+					float dist = node.dist(other) * TRANSFER_PENALTY_MULTIPLIER * DISTANCE_SCALE;
 					if (dist < TRANSFER_MAX_DIST) {
-						PathWrapper one = { &node, &WALKING_LINE };
-						PathWrapper two = { other, &WALKING_LINE };
-						node.addNeighbor(two, dist * TRANSFER_PENALTY_MULTIPLIER);
-						other->addNeighbor(one, dist * TRANSFER_PENALTY_MULTIPLIER);
+						node.addNeighbor({ other, &WALKING_LINE }, dist);
+						other->addNeighbor({ &node, &WALKING_LINE }, dist);
 						transferNeighbors++;
 					}
 				}
@@ -450,12 +450,10 @@ int init() {
 		// update node colors for each line
 		while (j < LINE_PATH_SIZE && line.path[j] != nullptr && line.path[j]->status == STATUS_SPAWNED) {
 			if (j > 0) {
-				line.dist[j - 1] = line.path[j]->dist(line.path[j - 1]) * 128;
-				struct PathWrapper one = { line.path[j], &line };
-				struct PathWrapper two = { line.path[j - 1], &line };
 				float dist = line.path[j]->dist(line.path[j - 1]);
-				line.path[j]->addNeighbor(two, dist);
-				line.path[j - 1]->addNeighbor(one, dist);
+				line.dist[j - 1] = dist;
+				line.path[j]->addNeighbor({ line.path[j - 1], &line }, dist);
+				line.path[j - 1]->addNeighbor({ line.path[j], &line }, dist);
 				lineNeighbors++;
 			}
 			line.path[j]->setFillColor(line.color);
@@ -480,7 +478,7 @@ int init() {
 				train.line = &line;
 				train.index = k;
 				train.status = STATUS_IN_TRANSIT;
-				train.statusForward = (l == 1) ? STATUS_BACK : (k == j - 1) ? STATUS_BACK : STATUS_FORWARD;
+				train.statusForward = (l == 1) ? STATUS_BACKWARD : (k == j - 1) ? STATUS_BACKWARD : STATUS_FORWARD;
 				train.setFillColor(line.color);
 			}
 		}
@@ -917,8 +915,18 @@ void simulationThread() {
 					std::vector<int> toDelete;
 					size_t start = i * chunkSize;
 					size_t end = std::min(start + chunkSize, citizens.activeSize());
-					for (size_t ind = start; ind < end; ++ind) {
-						citizens.triggerCitizenUpdate(ind, toDelete);
+					bool doCull = simTick % CITIZEN_CULL_FREQ == 0;
+					for (size_t ind = start; ind < end; ind++) {
+						Citizen& cit = citizens[ind];
+						if (!cit.status == STATUS_DESPAWNED) {
+							if (cit.updatePositionAlongPath()) {
+								cit.status = STATUS_DESPAWNED;
+								toDelete.push_back(ind);
+							}
+							if (doCull) {
+								cit.cull();
+							}
+						}
 					}
 					{
 						std::lock_guard<std::mutex> stackLock(blockStack);
