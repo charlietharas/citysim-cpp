@@ -665,7 +665,12 @@ void renderingThread() {
 						}
 						userEndNode->setFillColor(sf::Color::Cyan);
 						#if USER_INFO_MODE == true
-						std::cout << "INFO: User selected end " << userEndNode->id << std::endl;
+						std::cout << "INFO: User selected end " << userEndNode->id << std::endl << "Path: ";
+						for (int i = 0; i < userPathSize; i++) {
+							PathWrapper& p = userPath[i];
+							std::cout << p.node->id << "," << p.line->id << "->";
+						}
+						std::cout << "fin" << std::endl;
 						#endif
 						for (char i = 0; i < userPathSize; i++) {
 							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), userPath[i].line->color));
@@ -674,6 +679,11 @@ void renderingThread() {
 						userPathVertexBuffer.update(userPathVertices.data());
 						userNodesSelected++;
 					}
+					#if USER_INFO_MODE == true
+					else {
+						std::cout << "INFO: FAILED to path to User selection " << userEndNode->id << std::endl;
+					}
+					#endif
 					break;
 				case 2:
 					#if USER_INFO_MODE == true
