@@ -72,8 +72,7 @@ constexpr unsigned int TRAIN_CAPACITY = 750; // citizens cannot board trains if 
 // Citizen
 constexpr float CITIZEN_SPEED = 1.0f;
 #define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED // how long citizens walk through stations before waiting for a train
-#define CITIZEN_PATH_SIZE			64
-#define CITIZEN_SPAWN_INIT			30000 // initial amount of citizens to spawn before simulation start
+#define CITIZEN_SPAWN_INIT			4000 // initial amount of citizens to spawn before simulation start
 #define CITIZEN_SPAWN_FREQ			1024 // spawn citizens every n simulation ticks
 #define CITIZEN_CULL_FREQ			4096 // cull citizens who have been stuck longer than CITIZEN_DESPAWN_THRESH every n simulation ticks
 #define CITIZEN_SPAWN_METHOD		0 // 0 to match target amount, 1 for fixed amount (CITIZEN_SPAWN_AMT)
@@ -84,6 +83,7 @@ constexpr float CITIZEN_SPEED = 1.0f;
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 
 // Pathfinding
+#define CITIZEN_PATH_SIZE			64
 #define NODE_N_NEIGHBORS			16
 #define NODE_N_TRAINS				8
 constexpr float TRANSFER_MAX_DIST = 8.0f;
@@ -103,10 +103,10 @@ constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
 #define STAT_RATE					1000 // every n simulation ticks
 #define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE
 #define USER_INFO_MODE				true
-#define PATHFINDER_ERRORS			false
-#define TRAIN_ERRORS				true
+#define PATHFINDER_ERRORS			true
+#define TRAIN_ERRORS				false
 #define CITIZEN_SPAWN_ERRORS		false
-#define DISABLE_SIMULATION			false
+#define DISABLE_SIMULATION			true
 #define NODE_CAPACITY_WARN			512
 #define CITIZEN_DESPAWN_WARN		65536 * CITIZEN_SPEED
 #define CITIZEN_STUCK_THRESH		10 // ignore nodes with below n stuck citizens when outputting debug info

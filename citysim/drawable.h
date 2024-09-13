@@ -26,12 +26,12 @@ public:
 
 	inline float dist(Drawable* other) {
 		Vector2f delta = other->getPosition() - getPosition();
-		return sqrt(delta.x * delta.x + delta.y * delta.y) * DISTANCE_SCALE;
+		return sqrt(delta.x * delta.x + delta.y * delta.y);
 	}
 
 	inline float dist(float x, float y) {
 		Vector2f delta = Vector2f(x, y) - getPosition();
-		return sqrt(delta.x * delta.x + delta.y * delta.y) * DISTANCE_SCALE;
+		return sqrt(delta.x * delta.x + delta.y * delta.y);
 	}
 
 	void updateRadius(float radius) {

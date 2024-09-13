@@ -17,6 +17,7 @@ public:
 	char index;
 	unsigned int capacity;
 	float timer;
+	float dist;
 	Line* line;
 
 	inline float getDist(char indx) {

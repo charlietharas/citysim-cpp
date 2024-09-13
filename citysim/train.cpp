@@ -38,17 +38,17 @@ int Train::getPrevIndex() {
 void Train::updatePositionAlongLine() {
 	timer += TRAIN_SPEED;
 	char nextIndex = 0;
-	float dist;
 
 	switch (status) {
 	case STATUS_DESPAWNED:
 		return;
 	case STATUS_IN_TRANSIT:
+		// TODO reduce amount of calculations
 		if (statusForward == STATUS_FORWARD) {
-			dist = getDist(index);
+			dist = getDist(index) * DISTANCE_SCALE;
 		}
 		else {
-			dist = getDist(getNextIndex());
+			dist = getDist(getNextIndex()) * DISTANCE_SCALE;
 		}
 
 		// linearly interpolate position

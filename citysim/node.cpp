@@ -90,7 +90,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
     }
 
     auto compare = [](Node* a, Node* b) { return a->score > b->score; };
-    // should I be reserving space for these?
     std::priority_queue<Node*, std::vector<Node*>, decltype(compare)> queue(compare);
     std::unordered_set<Node*> queueSet;
     std::unordered_set<Node*> visited;
@@ -107,6 +106,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         queueSet.erase(current);
 
         if (current == end) {
+            // output path
             std::vector<PathWrapper> path;
             while (from.find(end) != from.end()) {
                 PathWrapper pathWrapper = from[end];
@@ -126,13 +126,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
                 return false;
             }
 
-            if (path[pathSize - 1].node == NULL) {
-                #if PATHFINDER_ERRORS == true
-                std::cout << "ERR: pathfinder threw out path with incorrect size " << pathSize << std::endl;
-                #endif
-                return false;
-            }
-
             std::copy(path.begin(), path.end(), destPath);
             *destPathSize = (char)pathSize;
 
@@ -144,14 +137,13 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
         visited.insert(current);
 
-        for (int i = 0; i < current->numNeighbors; ++i) {
+        for (int i = 0; i < current->numNeighbors; i++) {
             Node* neighbor = current->neighbors[i].node;
-            if (neighbor == nullptr) continue;
             Line* line = current->neighbors[i].line;
 
             if (visited.find(neighbor) != visited.end()) continue;
 
-            float aggregateScore = score[current] + current->weights[i];
+            float aggregateScore = score[current] + current->weights[i] + STOP_PENALTY;
 
             // anti-transfer heuristic
             if (from.find(neighbor) != from.end() && from[neighbor].line != line) {
@@ -171,5 +163,8 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         }
     }
     pathFails++;
+    #if PATHFINDER_ERRORS == true
+    std::cout << "ERR: no path found between " << id << ", " << end->id << std::endl;
+    #endif
     return false; // no path found
 }

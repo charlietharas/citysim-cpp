@@ -20,6 +20,8 @@
 #include "citizen.h"
 #include "util.h"
 
+// TODO fix pathfinding (how did I break it :( )
+
 // weighted-random node selection
 unsigned int totalRidership;
 std::random_device rd;
@@ -104,11 +106,6 @@ void generateRandomCitizens(int spawnAmount) {
 			handledCitizens++;
 			spawnedCount++;
 		}
-		#if PATHFINDER_ERRORS == true
-		else {
-			std::cout << "ERR: pathfinder failed to find path between " << nodes[startNode].id << ", " << nodes[endNode].id << std::endl;
-		}
-		#endif
 	}
 }
 
@@ -191,9 +188,9 @@ void debugReport() {
 
 	// display node pathfinding diagnostics
 	std::cout << "Patch cache hit rate: " << pathCacheHits << " hits=" << std::flush;
-	std::printf("%.2f", (float)(pathCacheHits) / pathRequests);
+	std::printf("%.2f", (float)(pathCacheHits) / pathRequests * 100);
 	std::cout << "%, fail rate: " << pathFails << " fails=" << std::flush;
-	std::printf("%.2f", (float)(pathFails) / pathRequests);
+	std::printf("%.2f", (float)(pathFails) / pathRequests * 100);
 	std::cout << "% for " << pathRequests << " requests" << std::endl << std::flush;
 	pathRequests = 0;
 	pathCacheHits = 0;
@@ -989,19 +986,23 @@ int main() {
 	renThread = std::thread(renderingThread);
 	#endif
 
+	#if DISABLE_SIMULATION == false
 	std::thread simThread(simulationThread);
 	std::thread pathThread(pathfindingThread);
+	#endif
 
 	// exit
 	if (!BENCHMARK_MODE && renThread.joinable()) {
 		renThread.join();
 	}
+	#if DISABLE_SIMULATION == false
 	if (pathThread.joinable()) {
 		pathThread.join();
 	}
 	if (simThread.joinable()) {
 		simThread.join();
 	}
+	#endif
 
 	return 0;
 }
