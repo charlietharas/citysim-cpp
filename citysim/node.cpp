@@ -77,10 +77,8 @@ char Node::numTrains() {
 }
 
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
-    pathRequests++;
     PathCacheWrapper& cachedPath = cache.get(this, end);
     if (cachedPath.size > 0) {
-        pathCacheHits++;
         std::copy(cachedPath.begin(), cachedPath.end(), destPath);
         *destPathSize = char(cachedPath.size);
         if (cachedPath.size < CITIZEN_PATH_SIZE) {
@@ -106,7 +104,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         queueSet.erase(current);
 
         if (current == end) {
-            // output path
+            // path found, postprocess and return
             std::vector<PathWrapper> path;
             while (from.find(end) != from.end()) {
                 PathWrapper pathWrapper = from[end];
@@ -121,7 +119,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             size_t pathSize = path.size();
             if (pathSize > CITIZEN_PATH_SIZE) {
                 #if PATHFINDER_ERRORS == true
-                std::cout << "ERR: pathfinder encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
+                std::cout << "ERR: encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
                 #endif
                 return false;
             }
@@ -139,13 +137,13 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
         for (int i = 0; i < current->numNeighbors; i++) {
             Node* neighbor = current->neighbors[i].node;
+            if (neighbor == nullptr) continue;
             Line* line = current->neighbors[i].line;
 
             if (visited.find(neighbor) != visited.end()) continue;
 
-            float aggregateScore = score[current] + current->weights[i] + STOP_PENALTY;
+            float aggregateScore = score[current] + current->weights[i];
 
-            // anti-transfer heuristic
             if (from.find(neighbor) != from.end() && from[neighbor].line != line) {
                 aggregateScore += TRANSFER_PENALTY;
             }
@@ -162,9 +160,5 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             }
         }
     }
-    pathFails++;
-    #if PATHFINDER_ERRORS == true
-    std::cout << "ERR: no path found between " << id << ", " << end->id << std::endl;
-    #endif
     return false; // no path found
 }

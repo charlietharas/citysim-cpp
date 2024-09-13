@@ -445,10 +445,12 @@ int init() {
 		// update node colors for each line
 		while (j < LINE_PATH_SIZE && line.path[j] != nullptr && line.path[j]->status == STATUS_SPAWNED) {
 			if (j > 0) {
+				line.dist[j - 1] = line.path[j]->dist(line.path[j - 1]) * DISTANCE_SCALE;
+				struct PathWrapper one = { line.path[j], &line };
+				struct PathWrapper two = { line.path[j - 1], &line };
 				float dist = line.path[j]->dist(line.path[j - 1]);
-				line.dist[j - 1] = dist;
-				line.path[j]->addNeighbor({ line.path[j - 1], &line }, dist);
-				line.path[j - 1]->addNeighbor({ line.path[j], &line }, dist);
+				line.path[j]->addNeighbor(two, dist);
+				line.path[j - 1]->addNeighbor(one, dist);
 				lineNeighbors++;
 			}
 			line.path[j]->setFillColor(line.color);
@@ -456,7 +458,7 @@ int init() {
 		}
 
 		// generate distances between nodes on each line
-		line.dist[j - 1] = line.dist[j-2];
+		line.dist[j - 1] = line.dist[j - 2];
 
 		// update line size (length)
 		line.size = j;

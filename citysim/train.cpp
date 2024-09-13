@@ -45,10 +45,10 @@ void Train::updatePositionAlongLine() {
 	case STATUS_IN_TRANSIT:
 		// TODO reduce amount of calculations
 		if (statusForward == STATUS_FORWARD) {
-			dist = getDist(index) * DISTANCE_SCALE;
+			dist = getDist(index);
 		}
 		else {
-			dist = getDist(getNextIndex()) * DISTANCE_SCALE;
+			dist = getDist(getNextIndex());
 		}
 
 		// linearly interpolate position
