@@ -20,8 +20,6 @@
 #include "citizen.h"
 #include "util.h"
 
-// TODO fix pathfinding (how did I break it :( )
-
 // weighted-random node selection
 unsigned int totalRidership;
 std::random_device rd;
@@ -474,7 +472,7 @@ int init() {
 				train.setPosition(line.path[k]->getPosition());
 				train.line = &line;
 				train.index = k;
-				train.status = STATUS_IN_TRANSIT;
+				train.status = STATUS_TRANSFER;
 				train.statusForward = (l == 1) ? STATUS_BACKWARD : (k == j - 1) ? STATUS_BACKWARD : STATUS_FORWARD;
 				train.setFillColor(line.color);
 			}

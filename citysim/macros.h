@@ -106,7 +106,7 @@ constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
 #define PATHFINDER_ERRORS			true
 #define TRAIN_ERRORS				false
 #define CITIZEN_SPAWN_ERRORS		false
-#define DISABLE_SIMULATION			true
+#define DISABLE_SIMULATION			false
 #define NODE_CAPACITY_WARN			512
 #define CITIZEN_DESPAWN_WARN		65536 * CITIZEN_SPEED
 #define CITIZEN_STUCK_THRESH		10 // ignore nodes with below n stuck citizens when outputting debug info

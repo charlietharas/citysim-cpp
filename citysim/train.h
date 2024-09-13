@@ -15,6 +15,7 @@ public:
 	char status;
 	char statusForward;
 	char index;
+	char nextIndex;
 	unsigned int capacity;
 	float timer;
 	float dist;

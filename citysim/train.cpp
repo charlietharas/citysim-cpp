@@ -37,24 +37,26 @@ int Train::getPrevIndex() {
 
 void Train::updatePositionAlongLine() {
 	timer += TRAIN_SPEED;
-	char nextIndex = 0;
 
 	switch (status) {
 	case STATUS_DESPAWNED:
 		return;
-	case STATUS_IN_TRANSIT:
-		// TODO reduce amount of calculations
+	case STATUS_TRANSFER:
+		if (statusForward == STATUS_FORWARD && index == line->size - 1) statusForward = STATUS_BACKWARD;
+		if (statusForward == STATUS_BACKWARD && index == 0) statusForward = STATUS_FORWARD;
+
 		if (statusForward == STATUS_FORWARD) {
 			dist = getDist(index);
 		}
 		else {
 			dist = getDist(getNextIndex());
 		}
-
-		// linearly interpolate position
-		if (statusForward == STATUS_FORWARD && index == line->size - 1) statusForward = STATUS_BACKWARD;
-		if (statusForward == STATUS_BACKWARD && index == 0) statusForward = STATUS_FORWARD;
 		nextIndex = getNextIndex();
+
+		status = STATUS_IN_TRANSIT;
+		break;
+	case STATUS_IN_TRANSIT:
+		// linearly interpolate position
 		setPosition(getStop(index)->lerp(timer / dist, getStop(nextIndex)));
 
 		// reached stop
@@ -77,7 +79,7 @@ void Train::updatePositionAlongLine() {
 		if (timer > TRAIN_STOP_THRESH) {
 			if (getLastStop()->removeTrain(this)) {
 				timer = 0;
-				status = STATUS_IN_TRANSIT;
+				status = STATUS_TRANSFER;
 			}
 			#if TRAIN_ERRORS == true
 			else {
