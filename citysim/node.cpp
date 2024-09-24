@@ -77,6 +77,7 @@ char Node::numTrains() {
 }
 
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
+    Node* endCopy = end;
     PathCacheWrapper& cachedPath = cache.get(this, end);
     if (cachedPath.size > 0) {
         std::copy(cachedPath.begin(), cachedPath.end(), destPath);
@@ -112,10 +113,8 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
                 end = pathWrapper.node;
             }
             std::reverse(path.begin(), path.end());
+            path.push_back(PathWrapper{ endCopy, path.back().line });
 
-            if (!path.empty()) {
-                path.push_back(PathWrapper{ end, path.back().line });
-            }
             size_t pathSize = path.size();
             if (pathSize > CITIZEN_PATH_SIZE) {
                 #if PATHFINDER_ERRORS == true
@@ -144,11 +143,11 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
             float aggregateScore = score[current] + current->weights[i];
 
-            if (from.find(neighbor) != from.end() && from[neighbor].line != line) {
+            if (from[neighbor].line != line) {
                 aggregateScore += TRANSFER_PENALTY;
             }
 
-            if (queueSet.find(neighbor) == queueSet.end() || aggregateScore < score[neighbor]) {
+            if (aggregateScore < score[neighbor] || queueSet.find(neighbor) == queueSet.end()) {
                 from[neighbor] = PathWrapper{ current, line };
                 score[neighbor] = aggregateScore;
                 neighbor->score = aggregateScore + neighbor->dist(end);

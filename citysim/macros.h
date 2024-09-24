@@ -86,7 +86,7 @@ constexpr float CITIZEN_SPEED = 1.0f;
 #define CITIZEN_PATH_SIZE			64
 #define NODE_N_NEIGHBORS			16
 #define NODE_N_TRAINS				8
-constexpr float TRANSFER_MAX_DIST = 8.0f;
+constexpr float TRANSFER_MAX_DIST = 8.0f * DISTANCE_SCALE;
 constexpr float TRANSFER_PENALTY_MULTIPLIER = TRAIN_SPEED / CITIZEN_SPEED * 2; // multiplier for distance walked during walking transfers
 constexpr int TRANSFER_PENALTY = DISTANCE_SCALE * 50; // fixed penalty for transferring to another line/walking
 constexpr int STOP_PENALTY = DISTANCE_SCALE * 4; // fixed penalty for each stop
@@ -103,7 +103,7 @@ constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
 #define STAT_RATE					1000 // every n simulation ticks
 #define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE
 #define USER_INFO_MODE				true
-#define PATHFINDER_ERRORS			true
+#define PATHFINDER_ERRORS			false
 #define TRAIN_ERRORS				false
 #define CITIZEN_SPAWN_ERRORS		false
 #define DISABLE_SIMULATION			false

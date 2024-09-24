@@ -20,6 +20,8 @@
 #include "citizen.h"
 #include "util.h"
 
+// TODO fix mutex issue locking simulation
+
 // weighted-random node selection
 unsigned int totalRidership;
 std::random_device rd;
@@ -443,10 +445,10 @@ int init() {
 		// update node colors for each line
 		while (j < LINE_PATH_SIZE && line.path[j] != nullptr && line.path[j]->status == STATUS_SPAWNED) {
 			if (j > 0) {
-				line.dist[j - 1] = line.path[j]->dist(line.path[j - 1]) * DISTANCE_SCALE;
+				float dist = line.path[j]->dist(line.path[j - 1]) * DISTANCE_SCALE;
+				line.dist[j - 1] = dist;
 				struct PathWrapper one = { line.path[j], &line };
 				struct PathWrapper two = { line.path[j - 1], &line };
-				float dist = line.path[j]->dist(line.path[j - 1]);
 				line.path[j]->addNeighbor(two, dist);
 				line.path[j - 1]->addNeighbor(one, dist);
 				lineNeighbors++;
@@ -658,7 +660,7 @@ void renderingThread() {
 					break;
 				case 1:
 					userEndNode = nearestNode;
-					if (userStartNode != userEndNode && userEndNode->findPath(userStartNode, userPath, &userPathSize)) {
+					if (userStartNode != userEndNode && userStartNode->findPath(userEndNode, userPath, &userPathSize)) {
 						if (userEndNode->getFillColor() != sf::Color::Cyan) {
 							secondColor = userEndNode->getFillColor();
 						}
