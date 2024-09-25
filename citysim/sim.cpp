@@ -21,6 +21,7 @@
 #include "util.h"
 
 // TODO fix mutex issue locking simulation
+// TODO fix more pathfinding issues (likely walking transfer)
 
 // weighted-random node selection
 unsigned int totalRidership;
@@ -421,8 +422,9 @@ int init() {
 		for (int i = node.lowerGridX(); i <= node.upperGridX(); i++) {
 			for (int j = node.lowerGridY(); j <= node.upperGridY(); j++) {
 				for (Node* other : nodeGrid[i][j]) {
-					float dist = node.dist(other) * TRANSFER_PENALTY_MULTIPLIER * DISTANCE_SCALE;
+					float dist = node.dist(other) * TRANSFER_PENALTY_MULTIPLIER;
 					if (dist < TRANSFER_MAX_DIST) {
+						dist *= DISTANCE_SCALE;
 						node.addNeighbor({ other, &WALKING_LINE }, dist);
 						other->addNeighbor({ &node, &WALKING_LINE }, dist);
 						transferNeighbors++;
@@ -732,6 +734,7 @@ void renderingThread() {
 				if (event.key.code == sf::Keyboard::P) {
 					simPause = !simPause;
 					doSimulation.notify_all();
+					// TODO freeze pathfinding thread
 				}
 				// press space to spawn CUSTOM_CITIZEN_SPAWN_AMT citizens at the nearest node
 				if (event.key.code == sf::Keyboard::Space) {

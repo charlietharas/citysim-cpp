@@ -96,7 +96,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
     std::unordered_map<Node*, float> score;
 
     score[this] = 0.0f;
-    this->score = score[this] + dist(end);
+    this->score = score[this] + dist(end) * DISTANCE_SCALE;
     queue.push(this);
     queueSet.insert(this);
     while (!queue.empty()) {
@@ -150,7 +150,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             if (aggregateScore < score[neighbor] || queueSet.find(neighbor) == queueSet.end()) {
                 from[neighbor] = PathWrapper{ current, line };
                 score[neighbor] = aggregateScore;
-                neighbor->score = aggregateScore + neighbor->dist(end);
+                neighbor->score = aggregateScore + neighbor->dist(end) * DISTANCE_SCALE;
 
                 if (queueSet.find(neighbor) == queueSet.end()) {
                     queue.push(neighbor);
