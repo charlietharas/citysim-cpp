@@ -20,8 +20,6 @@
 #include "citizen.h"
 #include "util.h"
 
-// TODO fix mutex issue locking simulation
-
 // weighted-random node selection
 unsigned int totalRidership;
 std::random_device rd;
@@ -78,7 +76,7 @@ void generateRandomCitizens(int spawnAmount) {
 
 	int spawnedCount = 0;
 
-	while (spawnedCount < spawnAmount) {
+	while (spawnedCount < spawnAmount && !simPause) {
 		int startRidership = dis(gen);
 		int endRidership;
 		int startNode, startRidershipCount;
@@ -733,7 +731,7 @@ void renderingThread() {
 				if (event.key.code == sf::Keyboard::P) {
 					simPause = !simPause;
 					doSimulation.notify_all();
-					// TODO freeze pathfinding thread
+					doPathfinding.notify_all();
 				}
 				// press space to spawn CUSTOM_CITIZEN_SPAWN_AMT citizens at the nearest node
 				if (event.key.code == sf::Keyboard::Space) {
