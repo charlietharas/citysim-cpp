@@ -21,7 +21,6 @@
 #include "util.h"
 
 // TODO fix mutex issue locking simulation
-// TODO fix more pathfinding issues (likely walking transfer)
 
 // weighted-random node selection
 unsigned int totalRidership;
@@ -422,9 +421,9 @@ int init() {
 		for (int i = node.lowerGridX(); i <= node.upperGridX(); i++) {
 			for (int j = node.lowerGridY(); j <= node.upperGridY(); j++) {
 				for (Node* other : nodeGrid[i][j]) {
-					float dist = node.dist(other) * TRANSFER_PENALTY_MULTIPLIER;
+					float dist = node.dist(other);
 					if (dist < TRANSFER_MAX_DIST) {
-						dist *= DISTANCE_SCALE;
+						dist *= DISTANCE_SCALE * TRANSFER_PENALTY_MULTIPLIER;
 						node.addNeighbor({ other, &WALKING_LINE }, dist);
 						other->addNeighbor({ &node, &WALKING_LINE }, dist);
 						transferNeighbors++;
