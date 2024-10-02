@@ -1,11 +1,11 @@
-Necessary short term improvements:
-- improve pathfinding performance
-	- increase cache utilization & performance (remove duplication, change placement/retrieval algorithm, restrict caching to complex paths)
-	- path contraction (to POIs/line nodes) (worth one more try)
-	- would multithreaded pathfinding be necessary? or other hardware utilization stuff?
-- improve citizen update loop performance
+Possible short term performance improvements:
+- pathfinding
+	- path contraction to POIs/line nodes--add nodes along the same line as node neighbors, or add major transfer points (this has previously reduced performance)
+	- multithreading/hardware utilization (likely not necessary)
+- citizen update loop
 	- delay updates/checks on citizens that aren't expected to get to their destination for a while (some sort of priority queue/other data structure)
-	- explore options for vectorization/individual update optimization
+	- path contraction post-generation (this has previously created issues and failed to improve performance, but does reduce memory usage significantly)
+	- explore options for vectorization/individual update optimization (likely not helpful)
 
 Possibilities for extension:
 - custom and accurate train counts, speeds (from https://new.mta.info/schedules, The Weekender)

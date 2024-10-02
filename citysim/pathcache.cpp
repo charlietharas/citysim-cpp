@@ -1,28 +1,18 @@
 #include "pathcache.h"
+#include <iostream>
 
 PathCacheWrapper NULL_WRAPPER;
 
 PathCacheWrapper::PathCacheWrapper() {
-    set(nullptr, nullptr, nullptr, 0, -1, false);
+    set(nullptr, nullptr, nullptr, 0, -1);
 }
 
 PathCacheWrapper::PathCacheWrapper(Node* st, Node* e, PathWrapper* p, int s) {
-    set(st, e, p, s, -1, false);
+    set(st, e, p, s, -1);
 }
 
-void PathCacheWrapper::set(Node* st, Node* e, PathWrapper* p, int s, int l, bool reversePath) {
-    if (reversePath) {
-        for (size_t i = 0; i < s-1; i++) {
-            path[i].node = p[s-i-1].node;
-            path[i].line = p[s - i - 2].line;
-        }
-        path[s - 1] = p[0];
-    }
-    else {
-        for (size_t i = 0; i < s; i++) {
-            path[i] = p[i];
-        }
-    }
+void PathCacheWrapper::set(Node* st, Node* e, PathWrapper* p, int s, int l) {
+    std::copy(p, p + s, path);
 
     startNode = st;
     endNode = e;
@@ -52,7 +42,7 @@ PathCache::~PathCache() {
     delete(cache);
 }
 
-bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s, bool reversePath) {
+bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s) {
     int bucket = (start->numerID + end->numerID) % NUM_BUCKETS;
     int bucketInd = bucket * BUCKET_SIZE;
     int max = -1;
@@ -64,7 +54,7 @@ bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s, bool reverseP
             return false;
         }
         if (lru == -1) {
-            cache[ind].set(start, end, p, s, 0, reversePath);
+            cache[ind].set(start, end, p, s, 0);
             return false;
         }
         if (lru > max) {
@@ -72,7 +62,7 @@ bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s, bool reverseP
             maxInd = ind;
         }
     }
-    cache[maxInd].set(start, end, p, s, 0, reversePath);
+    cache[maxInd].set(start, end, p, s, 0);
     return true;
 }
 
@@ -81,9 +71,9 @@ PathCacheWrapper& PathCache::get(Node* start, Node* end) {
     int bucketInd = bucket * BUCKET_SIZE;
     for (int i = 0; i < BUCKET_SIZE; i++) {
         int ind = bucketInd + i;
-        if (cache[bucketInd].startNode == start && cache[bucketInd].endNode == end) {
-            cache[bucketInd].lru = 0;
-            return cache[bucketInd];
+        if (cache[ind].startNode == start && cache[ind].endNode == end) {
+            cache[ind].lru = 0;
+            return cache[ind];
         }
     }
 

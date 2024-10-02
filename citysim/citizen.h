@@ -26,7 +26,8 @@ public:
 	std::string currentPathStr();
 
 	inline bool moveDownPath() {
-		if (++index >= pathSize - 1) {
+		if (++index > pathSize - 1) {
+			timer = 0;
 			status = STATUS_DESPAWNED;
 			return true;
 		}

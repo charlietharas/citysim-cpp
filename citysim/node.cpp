@@ -77,14 +77,27 @@ char Node::numTrains() {
 }
 
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
+    pathRequests++;
     Node* endCopy = end;
+
     PathCacheWrapper& cachedPath = cache.get(this, end);
     if (cachedPath.size > 0) {
+        pathCacheHits++;
         std::copy(cachedPath.begin(), cachedPath.end(), destPath);
         *destPathSize = char(cachedPath.size);
-        if (cachedPath.size < CITIZEN_PATH_SIZE) {
-            destPath[cachedPath.size] = PathWrapper();
+        destPath[cachedPath.size] = PathWrapper();
+        return true;
+    }
+
+    cachedPath = cache.get(end, this);
+    if (cachedPath.size > 0) {
+        pathCacheHits++;
+        std::reverse_copy(cachedPath.begin(), cachedPath.end(), destPath);
+        *destPathSize = char(cachedPath.size);
+        for (int i = 0; i < cachedPath.size-1; i++) {
+            destPath[i] = destPath[i + 1];
         }
+        destPath[cachedPath.size] = PathWrapper();
         return true;
     }
 
@@ -107,13 +120,17 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         if (current == end) {
             // path found, postprocess and return
             std::vector<PathWrapper> path;
+            int numTransfers = 0;
             Line* prevLine = nullptr;
             while (from.find(end) != from.end()) {
                 PathWrapper pathWrapper = from[end];
-                if (pathWrapper.line != prevLine) {
+                if (true || pathWrapper.line != prevLine) {
                     prevLine = pathWrapper.line;
-                    path.push_back(pathWrapper);
+                    numTransfers++;
+                    // would be possible to contract paths only to lines, but creates lots of issues and does not improve performance
+                    // would, however, have high impact on memory
                 }
+                path.push_back(pathWrapper);
                 end = pathWrapper.node;
             }
             path.push_back(PathWrapper{ this, path.back().line });
@@ -126,17 +143,17 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
                 #if PATHFINDER_ERRORS == true
                 std::cout << "ERR: encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
                 #endif
+                pathFails++;
                 return false;
             }
 
             std::copy(path.begin(), path.end(), destPath);
             *destPathSize = (char)pathSize;
+            destPath[pathSize] = PathWrapper();
 
-            // TODO would be good to ~double memory capacity by enabling backwards cache reading
-            // also, should restrict cache puts to more complex tasks to further limit cache size
-            // plus, rethink the caching algorithm to make sure it is fast + sensible
-            cache.put(this, end, destPath, pathSize, false);
-            cache.put(end, this, destPath, pathSize, true);
+            if (numTransfers >= CACHE_TRANSFERS_THRESHOLD) {
+                cache.put(this, endCopy, destPath, pathSize);
+            }
 
             return true;
         }
@@ -168,5 +185,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             }
         }
     }
+    pathFails++;
     return false; // no path found
 }

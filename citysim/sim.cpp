@@ -115,15 +115,17 @@ static void debugReport() {
 	// display problematic path steps, statuses of allocated citizens
 	std::map<std::string, unsigned int> stuckMap;
 	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0}, {"STUCK", 0} };
+	double citizenAgeTotal = 0;
 	for (int i = 0; i < citizens.size(); i++) {
 		Citizen& c = citizens[i];
 		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN && c.status != STATUS_WALK) {
 			stuckMap[c.currentPathStr()]++;
 			statusMap["STUCK"]++;
 		}
+		citizenAgeTotal += citizens[i].timer;
 		switch (c.status) {
 			case STATUS_DESPAWNED:
-				statusMap["DSPN"]++;
+				statusMap["DSPN"]++; // despawned citizen counting may be buggy atm
 				break;
 			case STATUS_SPAWNED:
 				statusMap["SPWN"]++;
@@ -143,6 +145,23 @@ static void debugReport() {
 		}
 	}
 
+	bool actuallyStuck = false;
+	for (auto const& x : stuckMap) {
+		if (x.second > CITIZEN_STUCK_THRESH) {
+			actuallyStuck = true;
+			break;
+		}
+	}
+
+	if (actuallyStuck) {
+		std::cout << "Citizens getting stuck at: " << std::endl;
+		for (auto const& x : stuckMap) {
+			if (x.second > CITIZEN_STUCK_THRESH) {
+				std::cout << x.first << " (" << x.second << ")\n";
+			}
+		}
+	}
+
 	for (auto const& x : statusMap) {
 		float second;
 		// percentages for all active citizens are shown as a %age of total active citizens
@@ -157,23 +176,7 @@ static void debugReport() {
 		std::cout << "%\t" << std::flush;
 	}
 	std::cout << std::endl;
-
-	bool actuallyStuck = false;
-	for (auto const& x : stuckMap) {
-		if (x.second > CITIZEN_STUCK_THRESH) {
-			actuallyStuck = true;
-			break;
-		}
-	}
-
-	if (actuallyStuck) {
-		std::cout << "Citizens getting stuck at: " << std::endl;
-		for (auto const& x : stuckMap) {
-			if (x.second > CITIZEN_STUCK_THRESH) {
-				std::cout << x.first << " ( " << x.second << ")\n";
-			}
-		}
-	}
+	std::cout << "Average citizen age: " << citizenAgeTotal / citizens.size() << std::endl;
 
 	// display problematic nodes
 	bool foundLargeNode = false;
@@ -963,7 +966,7 @@ void simulationThread() {
 	timeElapsed = (double(clock()) - timeElapsed) / CLOCKS_PER_SEC;
 	std::cout << "Simulation time elapsed: " << timeElapsed << "s" << std::endl;
 	std::cout << "Averaged " << simTick / timeElapsed << "t/s" << std::endl;
-	std::cout << "Averaged " << float(handledCitizens) / timeElapsed << "c/s citizen agents per second" << std::endl;
+	std::cout << "Averaged " << float(handledCitizens) / timeElapsed << "c/s (citizen agents per second)" << std::endl;
 	long int averageActiveCitizens = 0;
 	for (int i : activeCitizensStat) averageActiveCitizens += i;
 	averageActiveCitizens /= activeCitizensStat.size();

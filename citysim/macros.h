@@ -49,7 +49,7 @@
 #define STATUS_WALK					5
 #define STATUS_BOARDED				6
 #define STATUS_FORWARD				1
-#define STATUS_BACKWARD				0
+#define STATUS_BACKWARD				-1
 #define STATUS_AMBIVALENT			3
 #define STATUS_HIGHLIGHTED			2
 
@@ -60,15 +60,15 @@
 
 // Nodes
 #define NODE_ID_SIZE				36 // size of char buffer
-constexpr unsigned int NODE_CAPACITY = 256; // cosmetic only
+#define NODE_CAPACITY				256u // cosmetic only
 #define NODE_GRID_ROWS				10
 #define NODE_GRID_COLS				12
 
 // Train
 #define DEFAULT_TRAIN_STOP_SPACING	4 // spawn trains every n stops
-constexpr float TRAIN_SPEED = 8.0f;
-constexpr unsigned int TRAIN_CAPACITY = 750; // citizens cannot board trains if they are at max capacity
-#define TRAIN_STOP_THRESH			512 * TRAIN_SPEED // how long trains wait at stops
+#define TRAIN_SPEED					8.0f
+#define TRAIN_CAPACITY				750 // citizens cannot board trains if they are at max capacity
+#define TRAIN_STOP_THRESH			750 * TRAIN_SPEED // how long trains wait at stops
 
 // Citizen
 constexpr float CITIZEN_SPEED = 1.0f;
@@ -84,7 +84,7 @@ constexpr float CITIZEN_SPEED = 1.0f;
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 
 // Pathfinding
-#define CITIZEN_PATH_SIZE			20 // this value is not mathematically guaranteed to exceed the maximum number of possible lines in a path (but errors are handled)
+#define CITIZEN_PATH_SIZE			64 // this value is not mathematically guaranteed to exceed the maximum number of possible lines in a path (but errors are handled)
 #define NODE_N_NEIGHBORS			16
 #define NODE_N_TRAINS				8
 #define TRANSFER_MAX_DIST			10.0f
@@ -95,19 +95,20 @@ constexpr float CITIZEN_SPEED = 1.0f;
 // PathCache
 constexpr int PATH_CACHE_BUCKETS = 160;
 constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
+constexpr int CACHE_TRANSFERS_THRESHOLD = 2; // paths with n or different lines are cached
 
 // Debugging
 #define AOK							0
 #define ERROR_OPENING_FILE			1
-#define BENCHMARK_MODE				true
+#define BENCHMARK_MODE				false
 #define BENCHMARK_TICK_AMT			50000
 #define STAT_RATE					1000 // every n simulation ticks
-#define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE
+#define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE * 2
 #define USER_INFO_MODE				true
-#define PATHFINDER_ERRORS			true
+#define PATHFINDER_ERRORS			false
 #define TRAIN_ERRORS				false
 #define CITIZEN_SPAWN_ERRORS		false
 #define DISABLE_SIMULATION			false
 #define NODE_CAPACITY_WARN			512
-#define CITIZEN_DESPAWN_WARN		65536 * CITIZEN_SPEED
+#define CITIZEN_DESPAWN_WARN		500000 * CITIZEN_SPEED
 #define CITIZEN_STUCK_THRESH		10 // ignore nodes with below n stuck citizens when outputting debug info

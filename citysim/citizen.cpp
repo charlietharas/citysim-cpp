@@ -20,7 +20,7 @@ void Citizen::reset() {
 }
 
 std::string Citizen::currentPathStr() {
-	char sum[NODE_ID_SIZE * 2 + LINE_ID_SIZE * 2 + 7];
+	char sum[NODE_ID_SIZE * 2 + LINE_ID_SIZE * 2 + 16];
 	std::strcpy(sum, currentNode->id);
 	std::strcat(sum, ",");
 	std::strcat(sum, currentLine->id);
@@ -89,17 +89,18 @@ bool Citizen::updatePositionAlongPath() {
 			status = STATUS_AT_STOP;
 		}
 		return false;
-		
+
 	// this is slow! try not to spend too much time at a stop
 	case STATUS_AT_STOP:
 		for (int i = 0; i < currentNode->numTrains(); i++) {
 			Train* t = currentNode->trains[i];
 			if (t != nullptr && t->line == currentLine && t->capacity < TRAIN_CAPACITY && (t->statusForward == statusForward || statusForward == STATUS_AMBIVALENT)) {
 				util::subCapacity(&currentNode->capacity);
-				MOVE;
+				// we could store the distance until reaching the target node on this line locally, to prevent pointer jumps, but this probably has no performance effect
 				status = STATUS_BOARDED;
 				currentTrain = t;
 				currentTrain->capacity++;
+				MOVE;
 			}
 		}
 		return false;
@@ -112,23 +113,18 @@ bool Citizen::updatePositionAlongPath() {
 
 	case STATUS_IN_TRANSIT:
 		if (currentTrain->status == STATUS_AT_STOP && currentTrain->getLastStop() == currentNode) {
-			if (moveDownPath()) {
-				util::subCapacity(&currentTrain->capacity);
-				return true;
+			util::subCapacity(&currentTrain->capacity);
+			MOVE;
+
+			currentTrain = nullptr;
+
+			if (currentLine == &WALKING_LINE) {
+				switch_WALK();
+			}
+			else {
+				switch_TRANSFER();
 			}
 
-			if (currentLine != currentTrain->line) {
-				util::subCapacity(&currentTrain->capacity);
-
-				if (currentLine == &WALKING_LINE) {
-					switch_WALK();
-				}
-				else {
-					switch_TRANSFER();
-				}
-
-				currentTrain = nullptr;
-			}
 		}
 		return false;
 
