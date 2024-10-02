@@ -107,16 +107,22 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         if (current == end) {
             // path found, postprocess and return
             std::vector<PathWrapper> path;
+            Line* prevLine = nullptr;
             while (from.find(end) != from.end()) {
                 PathWrapper pathWrapper = from[end];
-                path.push_back(pathWrapper);
+                if (pathWrapper.line != prevLine) {
+                    prevLine = pathWrapper.line;
+                    path.push_back(pathWrapper);
+                }
                 end = pathWrapper.node;
             }
+            path.push_back(PathWrapper{ this, path.back().line });
             std::reverse(path.begin(), path.end());
             path.push_back(PathWrapper{ endCopy, path.back().line });
 
             size_t pathSize = path.size();
             if (pathSize > CITIZEN_PATH_SIZE) {
+                // yippee, memory safety!
                 #if PATHFINDER_ERRORS == true
                 std::cout << "ERR: encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
                 #endif

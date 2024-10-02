@@ -71,7 +71,8 @@ std::condition_variable doSimulation; // pauses simulation thread
 Node* nearestNode;
 Line WALKING_LINE;
 
-void generateRandomCitizens(int spawnAmount) {
+// spawns spawnAmount citizens at random nodes (selection weighted by ridership)
+static void generateRandomCitizens(int spawnAmount) {
 	if (spawnAmount <= 0) return;
 
 	int spawnedCount = 0;
@@ -107,7 +108,8 @@ void generateRandomCitizens(int spawnAmount) {
 	}
 }
 
-void debugReport() {
+// prints a bunch of stuff to the console on ; press
+static void debugReport() {
 	std::cout << "Report at tick " << simTick << ":" << std::endl;
 
 	// display problematic path steps, statuses of allocated citizens
@@ -194,7 +196,7 @@ void debugReport() {
 	pathCacheHits = 0;
 	pathFails = 0;
 
-	// display citizen vector information
+	// display memory information (citizen vector)
 	std::cout << "Citizen vector size=" << citizens.size() << " active=" << citizens.activeSize() << " inactive=" << citizens.size() - citizens.activeSize() << " cap=" << citizens.capacity() << " max=" << citizens.max() << std::endl;
 
 	std::cout << std::endl;
@@ -203,6 +205,7 @@ void debugReport() {
 // utility class to manage threads used for updating citizens every simulation tick
 class CitizenThreadPool {
 public:
+	// creates a thread pool with numThreads worker threads
 	CitizenThreadPool(size_t numThreads) {
 		stop = false;
 		for (size_t i = 0; i < numThreads; ++i) {
@@ -210,9 +213,10 @@ public:
 		}
 	}
 
+	// kills all worker threads
 	~CitizenThreadPool() {
 		{
-			std::unique_lock<std::mutex> queueLock(queueMutex);
+			std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
 			stop = true;
 		}
 		citizenThreadCV.notify_all();
@@ -221,34 +225,37 @@ public:
 		}
 	}
 
+	// gives a worker a new task (function f)
 	template<class F>
 	void enqueue(F&& f) {
 		{
-			std::unique_lock<std::mutex> queueLock(queueMutex);
+			std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
 			tasks.emplace(std::forward<F>(f));
 		}
 		citizenThreadCV.notify_one();
 	}
 
+	// waits until a worker has finished its tasks
 	void waitForCompletion() {
-		std::unique_lock<std::mutex> queueLock(queueMutex);
-		citizenThreadDoneCV.wait(queueLock, [this] { return tasks.empty() && activeThreads == 0; });
+		std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
+		citizenThreadDoneCV.wait(threadPoolQueueLock, [this] { return tasks.empty() && activeThreads == 0; });
 	}
 private:
 	std::vector<std::thread> workers;
 	std::queue<std::function<void()>> tasks;
-	std::mutex queueMutex;
-	std::condition_variable citizenThreadCV;
-	std::condition_variable citizenThreadDoneCV;
-	std::atomic<bool> stop;
+	std::mutex threadPoolQueueMutex;
+	std::condition_variable citizenThreadCV; // start task
+	std::condition_variable citizenThreadDoneCV; // complete task
+	std::atomic<bool> stop; // used to kill all threads on thread pool close
 	std::atomic<int> activeThreads{ 0 };
 
+	// worker executes functions in the function queue
 	void workerThread() {
 		while (!shouldExit) {
 			std::function<void()> task;
 			{
-				std::unique_lock<std::mutex> queueLock(queueMutex);
-				citizenThreadCV.wait(queueLock, [this] { return stop || !tasks.empty(); });
+				std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
+				citizenThreadCV.wait(threadPoolQueueLock, [this] { return stop || !tasks.empty(); });
 				if (stop && tasks.empty()) {
 					return;
 				}
@@ -265,7 +272,7 @@ private:
 	}
 };
 
-
+// initializes simulation variables
 int init() {
 	// utility arrays for node position normalization
 	float* nodesX = new float[MAX_NODES];
@@ -308,7 +315,6 @@ int init() {
 
 	VALID_LINES = row;
 	std::cout << "Processed " << VALID_LINES << " lines" << std::endl;
-
 
 	// parse [numerID, id, x, y, numLines, ridership] to generate nodes
 	std::ifstream stationsCSV("stations_data.csv");
@@ -383,7 +389,7 @@ int init() {
 
 	std::cout << "Normalized node positions" << std::endl;
 
-	// place nodes onto grid to normalize nearestNode calculations
+	// place nodes onto grid to normalize neighborly calculations (can reduce comparisons to only nodes in adjacent grid squares)
 	NODE_GRID_ROW_SIZE = WINDOW_WIDTH / NODE_GRID_ROWS;
 	NODE_GRID_COL_SIZE = WINDOW_HEIGHT / NODE_GRID_COLS;
 	for (int i = 0; i < NODE_GRID_ROWS; i++) {
@@ -505,13 +511,10 @@ void renderingThread() {
 	window.setFramerateLimit(TARGET_FPS);
 	window.requestFocus();
 
-	// fps limiter
-	sf::Clock clock;
-
 	// white background
 	sf::RectangleShape bg(Vector2f(WINDOW_WIDTH * ZOOM_MIN * 2, WINDOW_HEIGHT * ZOOM_MIN * 2));
 	bg.setPosition(WINDOW_WIDTH * -ZOOM_MIN, WINDOW_HEIGHT * -ZOOM_MIN);
-	bg.setFillColor(sf::Color::White);
+	bg.setFillColor(BACKGROUND_COLOR);
 
 	// info text (top left)
 	sf::Text text;
@@ -522,6 +525,7 @@ void renderingThread() {
 	text.setFillColor(sf::Color::Black);
 
 	// draw handlers and utilities
+	sf::Clock clock;
 	sf::View view(Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2), Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
 	sf::View textView(view);
 	Vector2f panOffset(0, 0);

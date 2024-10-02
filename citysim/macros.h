@@ -26,13 +26,14 @@
 #define NODE_SIZE_DIFF				NODE_MAX_SIZE - NODE_MIN_SIZE
 #define NODE_N_POINTS				8
 #define TEXT_REFRESH_RATE			10 // every n frames
+#define BACKGROUND_COLOR			sf::Color::White
 
 // Simulation size
 #define MAX_LINES					32
 #define MAX_NODES					512
 #define MAX_TRAINS					1024
 #define MAX_CITIZENS				200000
-#define NUM_CITIZEN_WORKER_THREADS	16
+#define NUM_CITIZEN_WORKER_THREADS	8 // important to adjust for performance depending on your machine
 #define DISTANCE_SCALE				128
 
 // File loading
@@ -83,7 +84,7 @@ constexpr float CITIZEN_SPEED = 1.0f;
 #define CITIZEN_DESPAWN_THRESH		CITIZEN_DESPAWN_WARN * 8
 
 // Pathfinding
-#define CITIZEN_PATH_SIZE			64
+#define CITIZEN_PATH_SIZE			20 // this value is not mathematically guaranteed to exceed the maximum number of possible lines in a path (but errors are handled)
 #define NODE_N_NEIGHBORS			16
 #define NODE_N_TRAINS				8
 #define TRANSFER_MAX_DIST			10.0f
@@ -103,7 +104,7 @@ constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
 #define STAT_RATE					1000 // every n simulation ticks
 #define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE
 #define USER_INFO_MODE				true
-#define PATHFINDER_ERRORS			false
+#define PATHFINDER_ERRORS			true
 #define TRAIN_ERRORS				false
 #define CITIZEN_SPAWN_ERRORS		false
 #define DISABLE_SIMULATION			false
