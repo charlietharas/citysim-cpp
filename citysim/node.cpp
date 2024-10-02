@@ -85,7 +85,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         pathCacheHits++;
         std::copy(cachedPath.begin(), cachedPath.end(), destPath);
         *destPathSize = char(cachedPath.size);
-        destPath[cachedPath.size] = PathWrapper();
         return true;
     }
 
@@ -97,7 +96,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         for (int i = 0; i < cachedPath.size-1; i++) {
             destPath[i] = destPath[i + 1];
         }
-        destPath[cachedPath.size] = PathWrapper();
         return true;
     }
 
@@ -149,7 +147,6 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
 
             std::copy(path.begin(), path.end(), destPath);
             *destPathSize = (char)pathSize;
-            destPath[pathSize] = PathWrapper();
 
             if (numTransfers >= CACHE_TRANSFERS_THRESHOLD) {
                 cache.put(this, endCopy, destPath, pathSize);

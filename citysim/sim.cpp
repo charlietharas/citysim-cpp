@@ -125,7 +125,7 @@ static void debugReport() {
 		citizenAgeTotal += citizens[i].timer;
 		switch (c.status) {
 			case STATUS_DESPAWNED:
-				statusMap["DSPN"]++; // despawned citizen counting may be buggy atm
+				statusMap["DSPN"]++; // TODO despawned citizens not working properly!
 				break;
 			case STATUS_SPAWNED:
 				statusMap["SPWN"]++;
@@ -940,8 +940,9 @@ void simulationThread() {
 								cit.status = STATUS_DESPAWNED;
 								toDelete.push_back(ind);
 							}
-							if (doCull) {
+							else if (doCull) {
 								if (cit.cull()) {
+									std::cout << "Scheduled cim deletion via cull" << std::endl; // this never prints, but for some reason, it needs to be here. lol
 									toDelete.push_back(ind);
 								}
 							}
