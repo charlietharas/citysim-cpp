@@ -99,7 +99,7 @@ constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
 // Debugging
 #define AOK							0
 #define ERROR_OPENING_FILE			1
-#define BENCHMARK_MODE				false
+#define BENCHMARK_MODE				true
 #define BENCHMARK_TICK_AMT			50000
 #define STAT_RATE					1000 // every n simulation ticks
 #define BENCHMARK_RESERVE			BENCHMARK_TICK_AMT / STAT_RATE

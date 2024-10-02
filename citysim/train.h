@@ -34,6 +34,7 @@ public:
 
 	int getNextIndex(bool reversed = false);
 	int getPrevIndex();
+	int getCorrectNextIndex();
 
 	void updatePositionAlongLine();
 };

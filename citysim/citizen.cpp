@@ -89,7 +89,8 @@ bool Citizen::updatePositionAlongPath() {
 			status = STATUS_AT_STOP;
 		}
 		return false;
-
+		
+	// this is slow! try not to spend too much time at a stop
 	case STATUS_AT_STOP:
 		for (int i = 0; i < currentNode->numTrains(); i++) {
 			Train* t = currentNode->trains[i];
@@ -110,7 +111,7 @@ bool Citizen::updatePositionAlongPath() {
 		return false;
 
 	case STATUS_IN_TRANSIT:
-		if (currentTrain->status == STATUS_AT_STOP && currentTrain->getCurrentStop() == currentNode) {
+		if (currentTrain->status == STATUS_AT_STOP && currentTrain->getLastStop() == currentNode) {
 			if (moveDownPath()) {
 				util::subCapacity(&currentTrain->capacity);
 				return true;

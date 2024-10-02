@@ -896,7 +896,6 @@ void simulationThread() {
 		}
 		if (simTick >= BENCHMARK_TICK_AMT) {
 			std::cout << std::endl << "Benchmark concluded at tick " << simTick << std::endl;
-			std::cout << "Handled " << handledCitizens << " citizens" << std::endl;
 			shouldExit = true;
 		}
 		#endif
@@ -961,11 +960,14 @@ void simulationThread() {
 	std::cout << "Simulation thread shut down" << std::endl;
 	std::cout << std::endl << "SIM DONE!" << std::endl;
 	std::cout << "Simulation ticks elapsed: " << simTick << std::endl;
-	std::cout << "Simulation time elapsed: " << (double(clock()) - timeElapsed) / CLOCKS_PER_SEC << "s" << std::endl;
-	long int averageActiveCitizens = 0; 
+	timeElapsed = (double(clock()) - timeElapsed) / CLOCKS_PER_SEC;
+	std::cout << "Simulation time elapsed: " << timeElapsed << "s" << std::endl;
+	std::cout << "Averaged " << simTick / timeElapsed << "t/s" << std::endl;
+	std::cout << "Averaged " << float(handledCitizens) / timeElapsed << "c/s citizen agents per second" << std::endl;
+	long int averageActiveCitizens = 0;
 	for (int i : activeCitizensStat) averageActiveCitizens += i;
 	averageActiveCitizens /= activeCitizensStat.size();
-	std::cout << "Averaged " << averageActiveCitizens << " citizen agents" << std::endl;
+	std::cout << "Averaged " << averageActiveCitizens << " concurrent citizen agents" << std::endl;
 	std::cout << "Handled total " << handledCitizens << " citizen agents" << std::endl;
 
 	doPathfinding.notify_one();
@@ -986,7 +988,13 @@ int main() {
 	#if BENCHMARK_MODE == true
 	// disable rendering
 	std::cout << "Simulation running in benchmark mode (" << BENCHMARK_TICK_AMT << " ticks)" << std::endl;
-	std::cout << "Citizens spawn " << CITIZEN_SPAWN_AMT << "/" << CITIZEN_SPAWN_FREQ << " ticks, max " << MAX_CITIZENS << std::endl;
+	std::cout << "Citizens spawn ";
+	#if CITIZEN_SPAWN_METHOD == 1
+	std::cout << CITIZEN_SPAWN_AMT << "/";
+	#else
+	std::cout << TARGET_CITIZEN_COUNT << "-N/";
+	#endif
+	std::cout << CITIZEN_SPAWN_FREQ << " ticks, max " << MAX_CITIZENS << std::endl;
 	#else
 	// enable rendering
 	renThread = std::thread(renderingThread);

@@ -1,8 +1,8 @@
 Necessary short term improvements:
 - improve pathfinding performance
 	- increase cache utilization & performance (remove duplication, change placement/retrieval algorithm, restrict caching to complex paths)
+	- path contraction (to POIs/line nodes) (worth one more try)
 	- would multithreaded pathfinding be necessary? or other hardware utilization stuff?
-	- path contraction (to POIs/line nodes) so long as it improves performance
 - improve citizen update loop performance
 	- delay updates/checks on citizens that aren't expected to get to their destination for a while (some sort of priority queue/other data structure)
 	- explore options for vectorization/individual update optimization

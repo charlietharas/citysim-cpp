@@ -1,5 +1,6 @@
 #include "train.h"
 
+// aah, this whole class is so confusing! why did i do this?
 Train::Train() {
 	 Drawable(TRAIN_MIN_SIZE, TRAIN_N_POINTS);
 }
@@ -33,6 +34,15 @@ int Train::getNextIndex(bool reversed) {
 
 int Train::getPrevIndex() {
 	return getNextIndex(true);
+}
+
+int Train::getCorrectNextIndex() {
+	if (statusForward == STATUS_FORWARD) {
+		return getNextIndex();
+	}
+	else {
+		return getNextIndex(true);
+	}
 }
 
 void Train::updatePositionAlongLine() {

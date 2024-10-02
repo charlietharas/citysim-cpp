@@ -38,16 +38,17 @@ public:
 	}
 
 	inline void switch_WALK() {
-		status = STATUS_WALK;
 		if (nextNode == nullptr) {
 			status = STATUS_DESPAWNED;
 		}
 		else {
+			status = STATUS_WALK;
 			dist = currentNode->dist(nextNode);
 		}
 	}
 
 	inline void switch_TRANSFER() {
+		timer = 0;
 		status = STATUS_TRANSFER;
 		currentNode->capacity++;
 		currentNode->totalRiders++;

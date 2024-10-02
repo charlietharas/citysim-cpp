@@ -132,6 +132,9 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             std::copy(path.begin(), path.end(), destPath);
             *destPathSize = (char)pathSize;
 
+            // TODO would be good to ~double memory capacity by enabling backwards cache reading
+            // also, should restrict cache puts to more complex tasks to further limit cache size
+            // plus, rethink the caching algorithm to make sure it is fast + sensible
             cache.put(this, end, destPath, pathSize, false);
             cache.put(end, this, destPath, pathSize, true);
 
