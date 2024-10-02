@@ -85,6 +85,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         pathCacheHits++;
         std::copy(cachedPath.begin(), cachedPath.end(), destPath);
         *destPathSize = char(cachedPath.size);
+        
         return true;
     }
 
@@ -122,7 +123,7 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             Line* prevLine = nullptr;
             while (from.find(end) != from.end()) {
                 PathWrapper pathWrapper = from[end];
-                if (true || pathWrapper.line != prevLine) {
+                if (pathWrapper.line != prevLine) {
                     prevLine = pathWrapper.line;
                     numTransfers++;
                     // would be possible to contract paths only to lines, but creates lots of issues and does not improve performance
@@ -131,13 +132,12 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
                 path.push_back(pathWrapper);
                 end = pathWrapper.node;
             }
-            path.push_back(PathWrapper{ this, path.back().line });
             std::reverse(path.begin(), path.end());
             path.push_back(PathWrapper{ endCopy, path.back().line });
 
             size_t pathSize = path.size();
             if (pathSize > CITIZEN_PATH_SIZE) {
-                // yippee, memory safety!
+                // cosplaying as someone who cares about memory safety
                 #if PATHFINDER_ERRORS == true
                 std::cout << "ERR: encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
                 #endif

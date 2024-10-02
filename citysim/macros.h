@@ -93,9 +93,11 @@ constexpr float CITIZEN_SPEED = 1.0f;
 #define TRANSFER_PENALTY_MULTIPLIER TRAIN_SPEED / CITIZEN_SPEED // multiplier for distance walked during walking transfers
 
 // PathCache
-constexpr int PATH_CACHE_BUCKETS = 160;
-constexpr int PATH_CACHE_BUCKETS_SIZE = 48;
+constexpr int PATH_CACHE_BUCKETS = 200;
+constexpr int PATH_CACHE_BUCKETS_SIZE = 32;
 constexpr int CACHE_TRANSFERS_THRESHOLD = 2; // paths with n or different lines are cached
+#define PRIME_1 541
+#define PRIME_2 1223
 
 // Debugging
 #define AOK							0

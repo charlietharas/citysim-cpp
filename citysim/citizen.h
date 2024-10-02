@@ -38,13 +38,15 @@ public:
 		return false;
 	}
 
-	inline void switch_WALK() {
+	inline bool switch_WALK() {
 		if (nextNode == nullptr) {
 			status = STATUS_DESPAWNED;
+			return true;
 		}
 		else {
 			status = STATUS_WALK;
 			dist = currentNode->dist(nextNode);
+			return false;
 		}
 	}
 

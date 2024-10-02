@@ -125,7 +125,7 @@ static void debugReport() {
 		citizenAgeTotal += citizens[i].timer;
 		switch (c.status) {
 			case STATUS_DESPAWNED:
-				statusMap["DSPN"]++; // TODO despawned citizens not working properly!
+				statusMap["DSPN"]++;
 				break;
 			case STATUS_SPAWNED:
 				statusMap["SPWN"]++;
@@ -654,6 +654,7 @@ void renderingThread() {
 				std::vector<sf::Vertex> userPathVertices;
 				switch (userNodesSelected) {
 				case 0:
+					memset(userPath, 0, sizeof(PathWrapper) * CITIZEN_PATH_SIZE); // easier debugging
 					userStartNode = nearestNode;
 					if (userStartNode->getFillColor() != sf::Color::Cyan) {
 						firstColor = userStartNode->getFillColor();
@@ -675,6 +676,10 @@ void renderingThread() {
 						std::cout << "INFO: User selected end " << userEndNode->id << std::endl << "Path: ";
 						for (int i = 0; i < userPathSize; i++) {
 							PathWrapper& p = userPath[i];
+							if (p.line == nullptr || p.node == nullptr) {
+								userPathSize--; // this is super janky! oh well
+								continue;
+							}
 							std::cout << p.node->id << "," << p.line->id << "->";
 						}
 						std::cout << "fin" << std::endl;
@@ -937,14 +942,11 @@ void simulationThread() {
 						Citizen& cit = citizens[ind];
 						if (!cit.status == STATUS_DESPAWNED) {
 							if (cit.updatePositionAlongPath()) {
-								cit.status = STATUS_DESPAWNED;
 								toDelete.push_back(ind);
 							}
-							else if (doCull) {
-								if (cit.cull()) {
-									std::cout << "Scheduled cim deletion via cull" << std::endl; // this never prints, but for some reason, it needs to be here. lol
-									toDelete.push_back(ind);
-								}
+							else if (doCull && cit.cull()) {
+								std::cout << "Scheduled deletion for timed out citizen" << std::endl; // this never prints, but for some reason, it needs to be here. lol
+								toDelete.push_back(ind);
 							}
 						}
 					}
@@ -954,7 +956,7 @@ void simulationThread() {
 							citizens.remove(i);
 						}
 					}
-					});
+				});
 			}
 
 			pool.waitForCompletion();

@@ -7,6 +7,7 @@ std::mutex blockStack; // controls access to CitizenVector.inactive()
 std::mutex citizensMutex; // controls access to citizens.vec (used for debug reports, simulation, pushing back new citizens)
 
 #define MOVE if (moveDownPath()) return true
+#define DESPAWN status = STATUS_DESPAWNED; return true
 
 void Citizen::reset() {
 	status = STATUS_SPAWNED;
@@ -40,8 +41,7 @@ bool Citizen::updatePositionAlongPath() {
 		#if CITIZEN_SPAWN_ERRORS == true
 		std::cout << "ERR: despawned NULLPATHREF_MISC citizen@" << int(index) << ": " << currentPathStr() << std::endl;
 		#endif
-		status = STATUS_DESPAWNED;
-		return true;
+		DESPAWN;
 	}
 
 	timer += CITIZEN_SPEED;
@@ -52,7 +52,7 @@ bool Citizen::updatePositionAlongPath() {
 
 	case STATUS_SPAWNED:
 		if (currentLine == &WALKING_LINE) {
-			switch_WALK();
+			return switch_WALK();
 		}
 		else {
 			switch_TRANSFER();
@@ -63,7 +63,7 @@ bool Citizen::updatePositionAlongPath() {
 		if (timer > dist) {
 			MOVE;
 			if (currentLine == &WALKING_LINE) {
-				switch_WALK();
+				return switch_WALK();
 			}
 			else {
 				switch_TRANSFER();
@@ -92,7 +92,7 @@ bool Citizen::updatePositionAlongPath() {
 
 	// this is slow! try not to spend too much time at a stop
 	case STATUS_AT_STOP:
-		for (int i = 0; i < currentNode->numTrains(); i++) {
+		for (int i = 0; currentNode != nullptr && i < currentNode->numTrains(); i++) { // I don't know why the nullptr check is necessary lmao
 			Train* t = currentNode->trains[i];
 			if (t != nullptr && t->line == currentLine && t->capacity < TRAIN_CAPACITY && (t->statusForward == statusForward || statusForward == STATUS_AMBIVALENT)) {
 				util::subCapacity(&currentNode->capacity);
@@ -119,7 +119,7 @@ bool Citizen::updatePositionAlongPath() {
 			currentTrain = nullptr;
 
 			if (currentLine == &WALKING_LINE) {
-				switch_WALK();
+				return switch_WALK();
 			}
 			else {
 				switch_TRANSFER();
@@ -144,8 +144,7 @@ bool Citizen::cull() {
 		if (status == STATUS_AT_STOP || status == STATUS_TRANSFER) {
 			util::subCapacity(&currentNode->capacity);
 		}
-		status = STATUS_DESPAWNED;
-		return true;
+		DESPAWN;
 	}
 	return false;
 }
