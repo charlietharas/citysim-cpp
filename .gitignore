@@ -7,6 +7,8 @@
 *.sln
 *.vcxproj
 *.vcxproj.filters
+*.o
+citysim_app
 
 # User-specific files
 *.rsuser
