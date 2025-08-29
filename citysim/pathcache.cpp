@@ -1,5 +1,6 @@
 #include "pathcache.h"
 #include <iostream>
+#include <cstring>
 
 PathCacheWrapper NULL_WRAPPER;
 

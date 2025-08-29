@@ -1,4 +1,7 @@
 #include "citizen.h"
+#include <cstring>
+
+#include <cstring>
 
 class Node;
 extern Line WALKING_LINE;
@@ -22,12 +25,12 @@ void Citizen::reset() {
 
 std::string Citizen::currentPathStr() {
 	char sum[NODE_ID_SIZE * 2 + LINE_ID_SIZE * 2 + 16];
-	std::strcpy(sum, currentNode->id);
-	std::strcat(sum, ",");
-	std::strcat(sum, currentLine->id);
-	std::strcat(sum, "->");
+	strcpy(sum, currentNode->id);
+	strcat(sum, ",");
+	strcat(sum, currentLine->id);
+	strcat(sum, "->");
 	if (nextNode != nullptr) {
-		std::strcat(sum, nextNode->id);
+		strcat(sum, nextNode->id);
 	}
 	else {
 		std::strcat(sum, "NEXT_NODE_NULL");

@@ -11,6 +11,8 @@
 #include <set>
 #include <future>
 #include <random>
+#include <cstring>
+#include <cfloat>
 
 #include "macros.h"
 #include "line.h"
@@ -116,7 +118,7 @@ static void debugReport() {
 	std::map<std::string, unsigned int> stuckMap;
 	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0}, {"STUCK", 0} };
 	double citizenAgeTotal = 0;
-	for (int i = 0; i < citizens.size(); i++) {
+	for (size_t i = 0; i < citizens.size(); i++) {
 		Citizen& c = citizens[i];
 		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN && c.status != STATUS_WALK) {
 			stuckMap[c.currentPathStr()]++;
@@ -171,8 +173,8 @@ static void debugReport() {
 		else {
 			second = citizens.activeSize();
 		}
-		std::cout << x.first << ": " << x.second << "=" << std::flush;
-		std::printf("%.1f", (x.second / (float)citizens.size() * 100));
+		std::cout << x.first << ": " << second << "=" << std::flush;
+		std::printf("%.1f", (second / (float)citizens.size() * 100));
 		std::cout << "%\t" << std::flush;
 	}
 	std::cout << std::endl;
@@ -204,6 +206,7 @@ static void debugReport() {
 
 	std::cout << std::endl;
 }
+
 
 // utility class to manage threads used for updating citizens every simulation tick
 class CitizenThreadPool {
@@ -286,7 +289,7 @@ int init() {
 	std::string fileLine;
 
 	// parse [id, color, {path}] to generate lines
-	std::ifstream linesCSV("lines_stations.csv");
+	std::ifstream linesCSV("citysim/lines_stations.csv");
 	if (!linesCSV.is_open()) {
 		std::cerr << "Error opening lines_stations.csv" << std::endl;
 		return ERROR_OPENING_FILE;
@@ -303,7 +306,7 @@ int init() {
 		while (std::getline(lineStream, cell, ',')) {
 			if (col == 0) {
 				// line id (name) (e.g. 6, A_L, F)
-				std::strcpy(line.id, cell.c_str());
+				strcpy(line.id, cell.c_str());
 			} else if (col == 1) {
 				// color (type sf::Color)
 				util::colorConvert(&line.color, cell);
@@ -320,7 +323,7 @@ int init() {
 	std::cout << "Processed " << VALID_LINES << " lines" << std::endl;
 
 	// parse [numerID, id, x, y, numLines, ridership] to generate nodes
-	std::ifstream stationsCSV("stations_data.csv");
+	std::ifstream stationsCSV("citysim/stations_data.csv");
 	if (!stationsCSV.is_open()) {
 		std::cerr << "Error opening stations_data.csv" << std::endl;
 		return ERROR_OPENING_FILE;
@@ -342,7 +345,7 @@ int init() {
 				node.numerID = std::stoi(cell);
 				break;
 			case 1: // station id (name) (e.g. Astor Pl, 23rd St)
-				std::strcpy(node.id, cell.c_str());
+				strcpy(node.id, cell.c_str());
 				break;
 			case 2: // x coordinate
 				nodesX[row] = (std::stof(cell));
@@ -419,7 +422,7 @@ int init() {
 	// add node walking transfer neighbors (all nodes within TRANSFER_MAX_DIST units)
 	WALKING_LINE = Line();
 	WALKING_LINE.color = sf::Color::Black;
-	std::strcpy(WALKING_LINE.id, WALK_LINE_ID_STR);
+	strcpy(WALKING_LINE.id, WALK_LINE_ID_STR);
 
 	int transferNeighbors = 0;
 	for (int n = 0; n < VALID_NODES; n++) {
@@ -474,7 +477,7 @@ int init() {
 		// generate train objects
 		std::string idStr = line.id;
 		int spacing = idStr.find("A_") == std::string::npos ? DEFAULT_TRAIN_STOP_SPACING / 2 : DEFAULT_TRAIN_STOP_SPACING; // avoid excessive generation for the A train
-		for (int k = 0; k < j; k+= DEFAULT_TRAIN_STOP_SPACING) {
+		for (int k = 0; k < j; k+= spacing) {
 			// generate 2 trains (one going backward, one forward) except if at first/last stop
 			int repeat = (k == 0 || k == j - 1) ? 1 : 2;
 			for (int l = 0; l < repeat; l++) {
@@ -522,7 +525,7 @@ void renderingThread() {
 	// info text (top left)
 	sf::Text text;
 	sf::Font font;
-	font.loadFromFile("Arial.ttf");
+	font.loadFromFile("citysim/Arial.ttf");
 	text.setFont(font);
 	text.setCharacterSize(TEXT_FONT_SIZE);
 	text.setFillColor(sf::Color::Black);
@@ -596,7 +599,7 @@ void renderingThread() {
 		renderTick++;
 
 		// fps limiter
-		sf::Time frameStart = clock.getElapsedTime();
+		clock.getElapsedTime();
 
 		// get nearest node (uses node grid)
 		float minDist = FLT_MAX;

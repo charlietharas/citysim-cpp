@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <cmath>
 #include "macros.h"
 
 typedef sf::Vector2f Vector2f;
