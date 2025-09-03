@@ -8,7 +8,7 @@
 *.vcxproj
 *.vcxproj.filters
 *.o
-citysim_app
+citysim_app*
 .vscode/
 
 # User-specific files
