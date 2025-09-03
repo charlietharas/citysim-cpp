@@ -27,4 +27,8 @@ $(TARGET): $(OBJS)
 clean:
 	rm -f $(OBJS) $(TARGET)
 
+# Run rule
+run:
+	./$(TARGET)
+
 .PHONY: all clean
