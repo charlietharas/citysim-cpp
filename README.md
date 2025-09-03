@@ -10,6 +10,18 @@ https://github.com/CityOfNewYork/nyc-geo-metadata
 [Station ridership data](https://new.mta.info/agency/new-york-city-transit/subway-bus-ridership-2021)
 
 ### Future improvements
+
+#### SORTED
+- citizen update loop and data structure optimization
+- path contraction for pathfinding algorithm
+- path generation post-contraction
+- use different multithreading library? (omp or pthreads as opposed to clunky native C threads)
+- train physics (including geoline objects and collision avoidance)
+- dynamic train schedules
+- dynamic train paths
+- fix benchmark mode implementation
+
+#### ORIG
 Possible short term performance improvements:
 - pathfinding
 	- path contraction to POIs/line nodes--add nodes along the same line as node neighbors, or add major transfer points (this has previously reduced performance)

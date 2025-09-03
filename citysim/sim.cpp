@@ -165,16 +165,16 @@ static void debugReport() {
 	}
 
 	for (auto const& x : statusMap) {
-		float second;
+		float comp;
 		// percentages for all active citizens are shown as a %age of total active citizens
 		if (x.first == "DSPN") {
-			second = citizens.size();
+			comp = citizens.size();
 		}
 		else {
-			second = citizens.activeSize();
+			comp = citizens.activeSize();
 		}
-		std::cout << x.first << ": " << second << "=" << std::flush;
-		std::printf("%.1f", (second / (float)citizens.size() * 100));
+		std::cout << x.first << ": " << x.second << "=" << std::flush;
+		std::printf("%.1f", (x.second / comp * 100));
 		std::cout << "%\t" << std::flush;
 	}
 	std::cout << std::endl;
@@ -493,6 +493,9 @@ int init() {
 	}
 	std::cout << "Generated " << VALID_TRAINS << " trains" << std::endl;
 	std::cout << "Generated " << lineNeighbors << " line neighbors" << std::endl;
+	
+	// PUT PATH CONTRACTIONS HERE ?
+
 	std::cout << "Total neighbors: " << transferNeighbors + lineNeighbors << std::endl;
 
 	// enable continuous citizen spawning by default (necessary to generate initial citizen batch)
@@ -940,17 +943,21 @@ void simulationThread() {
 					std::vector<int> toDelete;
 					size_t start = i * chunkSize;
 					size_t end = std::min(start + chunkSize, citizens.activeSize());
+					#if CITIZEN_CULL_FREQ != 0
 					bool doCull = simTick % CITIZEN_CULL_FREQ == 0;
+					#endif
 					for (size_t ind = start; ind < end; ind++) {
 						Citizen& cit = citizens[ind];
 						if (!cit.status == STATUS_DESPAWNED) {
 							if (cit.updatePositionAlongPath()) {
 								toDelete.push_back(ind);
 							}
+							#if CITIZEN_CULL_FREQ != 0
 							else if (doCull && cit.cull()) {
 								std::cout << "Scheduled deletion for timed out citizen" << std::endl; // this never prints, but for some reason, it needs to be here. lol
 								toDelete.push_back(ind);
 							}
+							#endif
 						}
 					}
 					{
