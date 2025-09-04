@@ -53,12 +53,19 @@ run:
 debug-run: debug
 	gdb ./$(DEBUG_TARGET)
 
-format:
+go:
+	$(MAKE) && $(MAKE) run
+
+fresh:
+	$(MAKE) clean && $(MAKE)
+
+dev:
+	$(MAKE) clean && $(MAKE) && $(MAKE) run
+
+lint:
 	clang-format-15 -i $(ALL_SOURCE_FILES)
 
 lint-check:
 	clang-format-15 --dry-run -Werror $(ALL_SOURCE_FILES)
 
-lint: format
-
-.PHONY: all debug clean run debug-run format lint lint-check
+.PHONY: all debug clean run debug-run go lint lint-check
