@@ -89,25 +89,26 @@ bool add_citizen(uint16_t startNodeId, uint16_t endNodeId) {
 	}
 
 	CitizenHandle handle = citizens.create();
-	citizens.status[handle.id] = STATUS_SPAWNED;
-	citizens.currentTrain[handle.id] = {0, 0};
-	citizens.currentNode[handle.id] = path[0].node;
-	citizens.currentLine[handle.id] = path[0].line;
-	citizens.nextNode[handle.id] = path[1].node;
-	citizens.index[handle.id] = 0;
-	citizens.timer[handle.id] = 0;
-	citizens.dist[handle.id] = 0;
-	citizens.pathSize[handle.id] = pathSize;
+	auto cit_id = handle.id;
+	citizens.status[cit_id] = STATUS_SPAWNED;
+	citizens.currentTrain[cit_id] = {0, 0};
+	citizens.currentNode[cit_id] = path[0].node;
+	citizens.currentLine[cit_id] = path[0].line;
+	citizens.nextNode[cit_id] = path[1].node;
+	citizens.index[cit_id] = 0;
+	citizens.timer[cit_id] = 0;
+	citizens.dist[cit_id] = 0;
+	citizens.pathSize[cit_id] = pathSize;
 	for (int i = 0; i < pathSize; ++i) {
-		citizens.path[i][handle.id] = path[i];
+		citizens.path[i][cit_id] = path[i];
 	}
 
-	if (citizens.currentLine[handle.id] == &WALKING_LINE) {
-		citizens.status[handle.id] = STATUS_WALK;
+	if (citizens.currentLine[cit_id] == &WALKING_LINE) {
+		citizens.status[cit_id] = STATUS_WALK;
 		active_walkers.push_back(handle);
 	} else {
-		citizens.status[handle.id] = STATUS_TRANSFER;
-		nodes[citizens.currentNode[handle.id]].waiting_citizens.push_back(handle);
+		citizens.status[cit_id] = STATUS_TRANSFER;
+		nodes[citizens.currentNode[cit_id]].waiting_citizens.push_back(handle);
 	}
 
 	return true;
@@ -156,40 +157,51 @@ static int generateRandomCitizens(int spawnAmount) {
 
 // prints a bunch of stuff to the console on ; press
 static void debugReport() {
-	/*
-	TODO FIX DEBUG REPORT
 	std::cout << "Report at tick " << simTick << ":" << std::endl;
 
 	// display problematic path steps, statuses of allocated citizens
 	std::map<std::string, unsigned int> stuckMap;
-	std::map<std::string, int> statusMap{ {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0}, {"STUCK", 0} };
+	std::map<std::string, int> statusMap{
+	    {"DSPN", 0}, {"SPWN", 0}, {"MOVE", 0}, {"TSFR", 0}, {"STOP", 0}, {"WALK", 0}, {"STUCK", 0}};
 	double citizenAgeTotal = 0;
-	for (size_t i = 0; i < citizens.size(); i++) {
-		Citizen& c = citizens[i];
-		if (c.status != STATUS_DESPAWNED && c.timer > CITIZEN_DESPAWN_WARN && c.status != STATUS_WALK) {
-			stuckMap[c.currentPathStr()]++;
+	size_t totalCitizens = citizens.timer.size();
+	for (size_t i = 0; i < totalCitizens; i++) {
+		char status = citizens.status[i];
+		if (status != STATUS_DESPAWNED && citizens.timer[i] > CITIZEN_DESPAWN_WARN && status != STATUS_WALK) {
+			std::string key;
+			uint16_t curr = citizens.currentNode[i];
+			uint16_t next = citizens.nextNode[i];
+			Line* line = citizens.currentLine[i];
+			if (line != nullptr && curr < (uint16_t)VALID_NODES && next < (uint16_t)VALID_NODES) {
+				key = std::string(nodes[curr].id) + "," + std::string(line->id) + "->" + std::string(nodes[next].id);
+			} else if (curr < (uint16_t)VALID_NODES && next < (uint16_t)VALID_NODES) {
+				key = std::string(nodes[curr].id) + ",?->" + std::string(nodes[next].id);
+			} else {
+				key = "unknown";
+			}
+			stuckMap[key]++;
 			statusMap["STUCK"]++;
 		}
-		citizenAgeTotal += citizens[i].timer;
-		switch (c.status) {
-			case STATUS_DESPAWNED:
-				statusMap["DSPN"]++;
-				break;
-			case STATUS_SPAWNED:
-				statusMap["SPWN"]++;
-				break;
-			case STATUS_IN_TRANSIT:
-				statusMap["MOVE"]++;
-				break;
-			case STATUS_TRANSFER:
-				statusMap["TSFR"]++;
-				break;
-			case STATUS_AT_STOP:
-				statusMap["STOP"]++;
-				break;
-			case STATUS_WALK:
-				statusMap["WALK"]++;
-				break;
+		citizenAgeTotal += citizens.timer[i];
+		switch (status) {
+		case STATUS_DESPAWNED:
+			statusMap["DSPN"]++;
+			break;
+		case STATUS_SPAWNED:
+			statusMap["SPWN"]++;
+			break;
+		case STATUS_IN_TRANSIT:
+			statusMap["MOVE"]++;
+			break;
+		case STATUS_TRANSFER:
+			statusMap["TSFR"]++;
+			break;
+		case STATUS_AT_STOP:
+			statusMap["STOP"]++;
+			break;
+		case STATUS_WALK:
+			statusMap["WALK"]++;
+			break;
 		}
 	}
 
@@ -214,17 +226,17 @@ static void debugReport() {
 		float comp;
 		// percentages for all active citizens are shown as a %age of total active citizens
 		if (x.first == "DSPN") {
-			comp = citizens.size();
-		}
-		else {
-			comp = citizens.activeSize();
+			comp = citizens.timer.size();
+		} else {
+			comp = citizens.timer.size() - citizens.free_indices.size();
 		}
 		std::cout << x.first << ": " << x.second << "=" << std::flush;
-		std::printf("%.1f", (x.second / comp * 100));
+		std::printf("%.1f", (comp > 0 ? (x.second / comp * 100) : 0.0f));
 		std::cout << "%\t" << std::flush;
 	}
 	std::cout << std::endl;
-	std::cout << "Average citizen age: " << citizenAgeTotal / citizens.size() << std::endl;
+	std::cout << "Average citizen age: " << (citizens.timer.size() > 0 ? (citizenAgeTotal / citizens.timer.size()) : 0)
+	          << std::endl;
 
 	// display problematic nodes
 	bool foundLargeNode = false;
@@ -232,7 +244,8 @@ static void debugReport() {
 		if (nodes[i].capacity > NODE_CAPACITY_WARN) {
 			if (!foundLargeNode) std::cout << "Unusually large nodes:" << std::endl;
 			foundLargeNode = true;
-			std::cout << nodes[i].id << "[" << nodes[i].numerID << "] (" << nodes[i].capacity << ")" << ", ";
+			std::cout << nodes[i].id << "[" << nodes[i].numerID << "] (" << nodes[i].capacity << ")"
+			          << ", ";
 		}
 	}
 	if (foundLargeNode) std::cout << std::endl;
@@ -248,81 +261,16 @@ static void debugReport() {
 	pathFails = 0;
 
 	// display memory information (citizen vector)
-	std::cout << "Citizen vector size=" << citizens.size() << " active=" << citizens.activeSize() << " inactive=" << citizens.size() - citizens.activeSize() << " cap=" << citizens.capacity() << " max=" << citizens.max() << std::endl;
+	{
+		size_t total = citizens.timer.size();
+		size_t active = total - citizens.free_indices.size();
+		size_t inactive = total - active;
+		std::cout << "Citizen vector size=" << total << " active=" << active << " inactive=" << inactive
+		          << " cap=" << citizens.timer.capacity() << std::endl;
+	}
 
 	std::cout << std::endl;
-	*/
 }
-
-// utility class to manage threads used for updating citizens every simulation tick
-class CitizenThreadPool {
-  public:
-	// creates a thread pool with numThreads worker threads
-	CitizenThreadPool(size_t numThreads) {
-		stop = false;
-		for (size_t i = 0; i < numThreads; ++i) {
-			workers.emplace_back([this] { workerThread(); });
-		}
-	}
-
-	// kills all worker threads
-	~CitizenThreadPool() {
-		{
-			std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
-			stop = true;
-		}
-		citizenThreadCV.notify_all();
-		for (std::thread& worker : workers) {
-			worker.join();
-		}
-	}
-
-	// gives a worker a new task (function f)
-	template <class F> void enqueue(F&& f) {
-		{
-			std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
-			tasks.emplace(std::forward<F>(f));
-		}
-		citizenThreadCV.notify_one();
-	}
-
-	// waits until a worker has finished its tasks
-	void waitForCompletion() {
-		std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
-		citizenThreadDoneCV.wait(threadPoolQueueLock, [this] { return tasks.empty() && activeThreads == 0; });
-	}
-
-  private:
-	std::vector<std::thread> workers;
-	std::queue<std::function<void()>> tasks;
-	std::mutex threadPoolQueueMutex;
-	std::condition_variable citizenThreadCV;     // start task
-	std::condition_variable citizenThreadDoneCV; // complete task
-	std::atomic<bool> stop;                      // used to kill all threads on thread pool close
-	std::atomic<int> activeThreads{0};
-
-	// worker executes functions in the function queue
-	void workerThread() {
-		while (!shouldExit) {
-			std::function<void()> task;
-			{
-				std::unique_lock<std::mutex> threadPoolQueueLock(threadPoolQueueMutex);
-				citizenThreadCV.wait(threadPoolQueueLock, [this] { return stop || !tasks.empty(); });
-				if (stop && tasks.empty()) {
-					return;
-				}
-				task = std::move(tasks.front());
-				tasks.pop();
-			}
-			activeThreads++;
-			task();
-			activeThreads--;
-			if (tasks.empty() && activeThreads == 0) {
-				citizenThreadDoneCV.notify_one();
-			}
-		}
-	}
-};
 
 // initializes simulation variables
 int init() {
@@ -534,15 +482,16 @@ int init() {
 			int repeat = (k == 0 || k == j - 1) ? 1 : 2;
 			for (int l = 0; l < repeat; l++) {
 				TrainHandle handle = trains.create();
+				auto train_id = handle.id;
 				VALID_TRAINS++;
-				trains.position[handle.id] = nodes[line.path[k]].getPosition();
-				trains.line[handle.id] = &line;
-				trains.index[handle.id] = k;
-				trains.status[handle.id] = STATUS_TRANSFER;
-				trains.statusForward[handle.id] = (l == 1) ? STATUS_BACKWARD
-				    : (k == j - 1)                         ? STATUS_BACKWARD
-				                                           : STATUS_FORWARD;
-				trains.color[handle.id] = line.color;
+				trains.position[train_id] = nodes[line.path[k]].getPosition();
+				trains.line[train_id] = &line;
+				trains.index[train_id] = k;
+				trains.status[train_id] = STATUS_TRANSFER;
+				trains.statusForward[train_id] = (l == 1) ? STATUS_BACKWARD
+				    : (k == j - 1)                        ? STATUS_BACKWARD
+				                                          : STATUS_FORWARD;
+				trains.color[train_id] = line.color;
 			}
 		}
 	}
@@ -1050,54 +999,53 @@ void simulationThread() {
 
 							// Deboarding
 							auto& passengers = trains.passengers[i];
-							passengers.erase(std::remove_if(passengers.begin(),
-							                     passengers.end(),
-							                     [&](CitizenHandle cit_handle) {
-								                     if (citizens.nextNode[cit_handle.id] == endNodeIdx) {
-									                     citizens.index[cit_handle.id]++;
-									                     uint8_t path_idx = citizens.index[cit_handle.id];
-									                     citizens.currentNode[cit_handle.id] =
-									                         citizens.path[path_idx][cit_handle.id].node;
-									                     citizens.currentLine[cit_handle.id] =
-									                         citizens.path[path_idx][cit_handle.id].line;
+							passengers.erase(
+							    std::remove_if(passengers.begin(),
+							        passengers.end(),
+							        [&](CitizenHandle cit_handle) {
+								        auto cit_id = cit_handle.id;
+								        if (citizens.nextNode[cit_id] == endNodeIdx) {
+									        citizens.index[cit_id]++;
+									        uint8_t path_idx = citizens.index[cit_id];
+									        citizens.currentNode[cit_id] = citizens.path[path_idx][cit_id].node;
+									        citizens.currentLine[cit_id] = citizens.path[path_idx][cit_id].line;
 
-									                     if (path_idx + 1 >= citizens.pathSize[cit_handle.id]) {
-										                     citizens.destroy(cit_handle);
-									                     } else {
-										                     citizens.nextNode[cit_handle.id] =
-										                         citizens.path[path_idx + 1][cit_handle.id].node;
-										                     if (citizens.currentLine[cit_handle.id] == &WALKING_LINE) {
-											                     citizens.status[cit_handle.id] = STATUS_WALK;
-											                     active_walkers.push_back(cit_handle);
-										                     } else {
-											                     citizens.status[cit_handle.id] = STATUS_TRANSFER;
-											                     nodes[endNodeIdx].waiting_citizens.push_back(
-											                         cit_handle);
-										                     }
-									                     }
-									                     return true; // remove from passengers
-								                     }
-								                     return false;
-							                     }),
+									        if (path_idx + 1 >= citizens.pathSize[cit_id]) {
+										        //  citizens.destroy(cit_handle);
+									        } else {
+										        citizens.nextNode[cit_id] = citizens.path[path_idx + 1][cit_id].node;
+										        if (citizens.currentLine[cit_id] == &WALKING_LINE) {
+											        citizens.status[cit_id] = STATUS_WALK;
+											        active_walkers.push_back(cit_handle);
+										        } else {
+											        citizens.status[cit_id] = STATUS_TRANSFER;
+											        nodes[endNodeIdx].waiting_citizens.push_back(cit_handle);
+										        }
+									        }
+									        return true; // remove from passengers
+								        }
+								        return false;
+							        }),
 							    passengers.end());
 
 							// Boarding
 							auto& waiting = nodes[endNodeIdx].waiting_citizens;
-							waiting.erase(std::remove_if(waiting.begin(),
-							                  waiting.end(),
-							                  [&](CitizenHandle cit_handle) {
-								                  if (trains.capacity[i] < TRAIN_CAPACITY &&
-								                      citizens.currentLine[cit_handle.id] == trains.line[i] &&
-								                      citizens.nextNode[cit_handle.id] ==
-								                          trains.line[i]->path[trains.nextIndex[i]]) {
-									                  citizens.status[cit_handle.id] = STATUS_IN_TRANSIT;
-									                  citizens.currentTrain[cit_handle.id] = {i, trains.generation[i]};
-									                  trains.passengers[i].push_back(cit_handle);
-									                  trains.capacity[i]++;
-									                  return true; // remove from waiting
-								                  }
-								                  return false;
-							                  }),
+							waiting.erase(
+							    std::remove_if(waiting.begin(),
+							        waiting.end(),
+							        [&](CitizenHandle cit_handle) {
+								        auto cit_id = cit_handle.id;
+								        if (trains.capacity[i] < TRAIN_CAPACITY &&
+								            citizens.currentLine[cit_id] == trains.line[i] &&
+								            citizens.nextNode[cit_id] == trains.line[i]->path[trains.nextIndex[i]]) {
+									        citizens.status[cit_id] = STATUS_IN_TRANSIT;
+									        citizens.currentTrain[cit_id] = {i, trains.generation[i]};
+									        trains.passengers[i].push_back(cit_handle);
+									        trains.capacity[i]++;
+									        return true; // remove from waiting
+								        }
+								        return false;
+							        }),
 							    waiting.end());
 						}
 					}
@@ -1122,33 +1070,34 @@ void simulationThread() {
 		    std::remove_if(active_walkers.begin(),
 		        active_walkers.end(),
 		        [&](CitizenHandle handle) {
-			        citizens.timer[handle.id] += CITIZEN_SPEED;
-			        if (citizens.dist[handle.id] == 0) { // first time
-				        citizens.dist[handle.id] =
-				            nodes[citizens.currentNode[handle.id]].dist(&nodes[citizens.nextNode[handle.id]]);
+			        auto cit_id = handle.id;
+			        citizens.timer[cit_id] += CITIZEN_SPEED;
+			        if (citizens.dist[cit_id] == 0) { // first time
+				        citizens.dist[cit_id] =
+				            nodes[citizens.currentNode[cit_id]].dist(&nodes[citizens.nextNode[cit_id]]);
 			        }
 
-			        if (citizens.timer[handle.id] > citizens.dist[handle.id]) {
-				        citizens.index[handle.id]++;
-				        uint8_t path_idx = citizens.index[handle.id];
+			        if (citizens.timer[cit_id] > citizens.dist[cit_id]) {
+				        citizens.index[cit_id]++;
+				        uint8_t path_idx = citizens.index[cit_id];
 
-				        if (path_idx >= citizens.pathSize[handle.id] || path_idx >= CITIZEN_PATH_SIZE) {
-					        citizens.destroy(handle);
+				        if (path_idx >= citizens.pathSize[cit_id] || path_idx >= CITIZEN_PATH_SIZE) {
+					        // citizens.destroy(handle);
 				        } else {
-					        citizens.currentNode[handle.id] = citizens.path[path_idx][handle.id].node;
-					        citizens.currentLine[handle.id] = citizens.path[path_idx][handle.id].line;
+					        citizens.currentNode[cit_id] = citizens.path[path_idx][cit_id].node;
+					        citizens.currentLine[cit_id] = citizens.path[path_idx][cit_id].line;
 
-					        if (path_idx + 1 >= citizens.pathSize[handle.id]) {
-						        citizens.destroy(handle);
+					        if (path_idx + 1 >= citizens.pathSize[cit_id]) {
+						        // citizens.destroy(handle); // is this not redundant?
 					        } else {
-						        citizens.nextNode[handle.id] = citizens.path[path_idx + 1][handle.id].node;
-						        if (citizens.currentLine[handle.id] == &WALKING_LINE) {
-							        citizens.timer[handle.id] = 0;
-							        citizens.dist[handle.id] = 0;
+						        citizens.nextNode[cit_id] = citizens.path[path_idx + 1][cit_id].node;
+						        if (citizens.currentLine[cit_id] == &WALKING_LINE) {
+							        citizens.timer[cit_id] = 0;
+							        citizens.dist[cit_id] = 0;
 							        // remain in walking state
 						        } else {
-							        citizens.status[handle.id] = STATUS_TRANSFER;
-							        nodes[citizens.currentNode[handle.id]].waiting_citizens.push_back(handle);
+							        citizens.status[cit_id] = STATUS_TRANSFER;
+							        nodes[citizens.currentNode[cit_id]].waiting_citizens.push_back(handle);
 							        return true; // remove from active_walkers
 						        }
 					        }
