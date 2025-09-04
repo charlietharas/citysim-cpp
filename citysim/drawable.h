@@ -7,9 +7,8 @@
 typedef sf::Vector2f Vector2f;
 
 class Drawable : public sf::CircleShape {
-public:
-	Drawable(float radius = 5.0f, int numPoints = 20, sf::Vector2f pos = sf::Vector2f(0, 0)) :
-		sf::CircleShape(radius) {
+  public:
+	Drawable(float radius = 5.0f, int numPoints = 20, sf::Vector2f pos = sf::Vector2f(0, 0)) : sf::CircleShape(radius) {
 		sf::CircleShape::setPosition(pos);
 		sf::CircleShape::setOrigin(radius, radius);
 		sf::CircleShape::setFillColor(sf::Color::Black);

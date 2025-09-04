@@ -4,7 +4,7 @@
 #include <cstdint>
 
 struct Line {
-public:
+  public:
 	char size;
 	char id[LINE_ID_SIZE];
 	sf::Color color;

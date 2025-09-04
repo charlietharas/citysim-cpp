@@ -11,6 +11,10 @@ SRCS = citysim/sim.cpp citysim/node.cpp citysim/util.cpp citysim/pathcache.cpp
 OBJS = $(SRCS:.cpp=.o)
 DEBUG_OBJS = $(SRCS:.cpp=.debug.o)
 
+HEADERS = $(wildcard citysim/*.h)
+
+ALL_SOURCE_FILES = $(SRCS) $(HEADERS)
+
 # Executable name
 TARGET = citysim_app
 DEBUG_TARGET = citysim_app_debug
@@ -49,4 +53,12 @@ run:
 debug-run: debug
 	gdb ./$(DEBUG_TARGET)
 
-.PHONY: all debug clean run debug-run
+format:
+	clang-format-15 -i $(ALL_SOURCE_FILES)
+
+lint-check:
+	clang-format-15 --dry-run -Werror $(ALL_SOURCE_FILES)
+
+lint: format
+
+.PHONY: all debug clean run debug-run format lint lint-check

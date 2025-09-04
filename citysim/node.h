@@ -14,62 +14,62 @@
 class PathCacheWrapper;
 
 struct PathWrapper {
-    uint16_t node;
-    Line* line;
+	uint16_t node;
+	Line* line;
 };
 
 class Node : public Drawable {
-public:
-    char id[NODE_ID_SIZE];
-    unsigned int ridership;
-    unsigned int capacity;
-    unsigned short int numerID;
-    char numNeighbors;
-    char status;
-    float score;
-    unsigned short int gridPos;
-    unsigned short int level;
-    unsigned long int totalRiders;
-    char numLines;
-    PathWrapper neighbors[NODE_N_NEIGHBORS];
-    float weights[NODE_N_NEIGHBORS];
-    TrainHandle trains[NODE_N_TRAINS];
-    std::vector<CitizenHandle> waiting_citizens;
+  public:
+	char id[NODE_ID_SIZE];
+	unsigned int ridership;
+	unsigned int capacity;
+	unsigned short int numerID;
+	char numNeighbors;
+	char status;
+	float score;
+	unsigned short int gridPos;
+	unsigned short int level;
+	unsigned long int totalRiders;
+	char numLines;
+	PathWrapper neighbors[NODE_N_NEIGHBORS];
+	float weights[NODE_N_NEIGHBORS];
+	TrainHandle trains[NODE_N_TRAINS];
+	std::vector<CitizenHandle> waiting_citizens;
 
-    Node();
+	Node();
 
-    bool addTrain(TrainHandle train);
-    bool removeTrain(TrainHandle train);
-    bool addNeighbor(const PathWrapper& neighbor, float weight);
-    bool removeNeighbor(const PathWrapper& neighbor);
+	bool addTrain(TrainHandle train);
+	bool removeTrain(TrainHandle train);
+	bool addNeighbor(const PathWrapper& neighbor, float weight);
+	bool removeNeighbor(const PathWrapper& neighbor);
 
-    inline void setGridPos(char x, char y) {
-        gridPos = x << 8 | y;
-    }
-    inline char gridX() {
-        return gridPos >> 8;
-    }
-    inline char gridY() {
-        return gridPos & 0x0F;
-    }
-    inline char lowerGridX() {
-        char x = gridX();
-        return x > 0 ? x - 1 : x;
-    }
-    inline char upperGridX() {
-        char x = gridX();
-        return x < NODE_GRID_ROWS - 1 ? x + 1 : x;
-    }
-    inline char lowerGridY() {
-        char y = gridY();
-        return y > 0 ? y - 1 : y;
-    }
-    inline char upperGridY() {
-        char y = gridY();
-        return y < NODE_GRID_COLS - 1 ? y + 1 : y;
-    }
-    char numTrains();
+	inline void setGridPos(char x, char y) {
+		gridPos = x << 8 | y;
+	}
+	inline char gridX() {
+		return gridPos >> 8;
+	}
+	inline char gridY() {
+		return gridPos & 0x0F;
+	}
+	inline char lowerGridX() {
+		char x = gridX();
+		return x > 0 ? x - 1 : x;
+	}
+	inline char upperGridX() {
+		char x = gridX();
+		return x < NODE_GRID_ROWS - 1 ? x + 1 : x;
+	}
+	inline char lowerGridY() {
+		char y = gridY();
+		return y > 0 ? y - 1 : y;
+	}
+	inline char upperGridY() {
+		char y = gridY();
+		return y < NODE_GRID_COLS - 1 ? y + 1 : y;
+	}
+	char numTrains();
 
-    static std::vector<PathWrapper> bidirectionalAStar(Node* start, Node* end);
-    bool findPath(Node* end, PathWrapper* destPath, char* destPathSize);
+	static std::vector<PathWrapper> bidirectionalAStar(Node* start, Node* end);
+	bool findPath(Node* end, PathWrapper* destPath, char* destPathSize);
 };
