@@ -2,6 +2,8 @@
 #include "node.h"
 #include "pathcache.h"
 
+extern Node nodes[MAX_NODES];
+
 PathCache cache = PathCache(PATH_CACHE_BUCKETS, PATH_CACHE_BUCKETS_SIZE);
 
 int pathRequests;
@@ -14,13 +16,13 @@ Node::Node() : Drawable(NODE_MIN_SIZE, NODE_N_POINTS) {
         neighbors[i] = PathWrapper();
     }
     for (int i = 0; i < NODE_N_TRAINS; i++) {
-        trains[i] = nullptr;
+        trains[i] = {0, 0};
     }
 }
 
-bool Node::addTrain(Train* train) {
+bool Node::addTrain(TrainHandle train) {
     for (int i = 0; i < NODE_N_TRAINS; i++) {
-        if (trains[i] == nullptr) {
+        if (trains[i].generation == 0) {
             trains[i] = train;
             return true;
         }
@@ -28,10 +30,10 @@ bool Node::addTrain(Train* train) {
     return false;
 }
 
-bool Node::removeTrain(Train* train) {
+bool Node::removeTrain(TrainHandle train) {
     for (int i = 0; i < NODE_N_TRAINS; i++) {
         if (trains[i] == train) {
-            trains[i] = nullptr;
+            trains[i] = {0, 0};
             return true;
         }
     }
@@ -43,7 +45,7 @@ bool Node::addNeighbor(const PathWrapper& neighbor, float weight) {
         if (neighbors[i].node == neighbor.node && neighbors[i].line == neighbor.line) {
             return false;
         }
-        if (neighbors[i].node == nullptr) {
+        if (neighbors[i].line == nullptr) {
             neighbors[i] = neighbor;
             weights[i] = weight;
             numNeighbors++;
@@ -57,7 +59,7 @@ bool Node::addNeighbor(const PathWrapper& neighbor, float weight) {
 bool Node::removeNeighbor(const PathWrapper& neighbor) {
     for (int i = 0; i < NODE_N_NEIGHBORS; i++) {
         if (neighbors[i].node == neighbor.node && neighbors[i].line == neighbor.line) {
-            neighbors[i].node = nullptr;
+            neighbors[i].node = 0;
             neighbors[i].line = nullptr;
             numNeighbors--;
             return true;
@@ -69,8 +71,8 @@ bool Node::removeNeighbor(const PathWrapper& neighbor) {
 char Node::numTrains() {
     int c = 0;
     for (int i = 0; i < NODE_N_TRAINS; i++) {
-        if (trains[i] != nullptr) {
-            c++; // lol, haha! funny!
+        if (trains[i].generation != 0) {
+            c++;
         }
     }
     return c;
@@ -78,8 +80,9 @@ char Node::numTrains() {
 
 bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
     pathRequests++;
-    Node* endCopy = end;
-
+    
+    // TODO: Fix path caching
+    /*
     PathCacheWrapper& cachedPath = cache.get(this, end);
     if (cachedPath.size > 0) {
         pathCacheHits++;
@@ -99,48 +102,42 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
         }
         return true;
     }
+    */
 
-    auto compare = [](Node* a, Node* b) { return a->score > b->score; };
-    std::priority_queue<Node*, std::vector<Node*>, decltype(compare)> queue(compare);
-    std::unordered_set<Node*> queueSet;
-    std::unordered_set<Node*> visited;
-    std::unordered_map<Node*, PathWrapper> from;
-    std::unordered_map<Node*, float> score;
+    auto compare = [](uint16_t a, uint16_t b) { return nodes[a].score > nodes[b].score; };
+    std::priority_queue<uint16_t, std::vector<uint16_t>, decltype(compare)> queue(compare);
+    std::unordered_set<uint16_t> queueSet;
+    std::unordered_set<uint16_t> visited;
+    std::unordered_map<uint16_t, PathWrapper> from;
+    std::unordered_map<uint16_t, float> score;
 
-    score[this] = 0.0f;
-    this->score = score[this] + dist(end) * DISTANCE_SCALE;
-    queue.push(this);
-    queueSet.insert(this);
+    uint16_t start_id = this->numerID;
+    uint16_t end_id = end->numerID;
+
+    score[start_id] = 0.0f;
+    nodes[start_id].score = score[start_id] + this->dist(end) * DISTANCE_SCALE;
+    queue.push(start_id);
+    queueSet.insert(start_id);
+
     while (!queue.empty()) {
-        Node* current = queue.top();
+        uint16_t current_id = queue.top();
         queue.pop();
-        queueSet.erase(current);
+        queueSet.erase(current_id);
 
-        if (current == end) {
+        if (current_id == end_id) {
             // path found, postprocess and return
             std::vector<PathWrapper> path;
-            int numTransfers = 0;
-            Line* prevLine = nullptr;
-            while (from.find(end) != from.end()) {
-                PathWrapper pathWrapper = from[end];
-                if (pathWrapper.line != prevLine) {
-                    prevLine = pathWrapper.line;
-                    numTransfers++;
-                    // would be possible to contract paths only to lines, but creates lots of issues and does not improve performance
-                    // would, however, have high impact on memory
-                }
-                path.push_back(pathWrapper);
-                end = pathWrapper.node;
+            uint16_t current_path_node = end_id;
+            while (from.find(current_path_node) != from.end()) {
+                PathWrapper pathWrapper = from[current_path_node];
+                path.push_back({current_path_node, pathWrapper.line});
+                current_path_node = pathWrapper.node;
             }
+            path.push_back({start_id, path.back().line});
             std::reverse(path.begin(), path.end());
-            path.push_back(PathWrapper{ endCopy, path.back().line });
 
             size_t pathSize = path.size();
             if (pathSize > CITIZEN_PATH_SIZE) {
-                // cosplaying as someone who cares about memory safety
-                #if PATHFINDER_ERRORS == true
-                std::cout << "ERR: encountered large path (" << pathSize << ") [" << this->id << " : " << end->id << " ]" << std::endl;
-                #endif
                 pathFails++;
                 return false;
             }
@@ -148,36 +145,35 @@ bool Node::findPath(Node* end, PathWrapper* destPath, char* destPathSize) {
             std::copy(path.begin(), path.end(), destPath);
             *destPathSize = (char)pathSize;
 
-            if (numTransfers >= CACHE_TRANSFERS_THRESHOLD) {
-                cache.put(this, endCopy, destPath, pathSize);
-            }
+            // TODO: Fix path caching
+            //cache.put(this, end, destPath, pathSize);
 
             return true;
         }
 
-        visited.insert(current);
+        visited.insert(current_id);
+        Node& current_node = nodes[current_id];
 
-        for (int i = 0; i < current->numNeighbors; i++) {
-            Node* neighbor = current->neighbors[i].node;
-            if (neighbor == nullptr) continue;
-            Line* line = current->neighbors[i].line;
+        for (int i = 0; i < current_node.numNeighbors; i++) {
+            uint16_t neighbor_id = current_node.neighbors[i].node;
+            Line* line = current_node.neighbors[i].line;
 
-            if (visited.find(neighbor) != visited.end()) continue;
+            if (visited.find(neighbor_id) != visited.end()) continue;
 
-            float aggregateScore = score[current] + current->weights[i];
+            float aggregateScore = score[current_id] + current_node.weights[i];
 
-            if (from[neighbor].line != line) {
+            if (from.count(neighbor_id) && from[neighbor_id].line != line) {
                 aggregateScore += TRANSFER_PENALTY;
             }
 
-            if (aggregateScore < score[neighbor] || queueSet.find(neighbor) == queueSet.end()) {
-                from[neighbor] = PathWrapper{ current, line };
-                score[neighbor] = aggregateScore;
-                neighbor->score = aggregateScore + neighbor->dist(end) * DISTANCE_SCALE;
+            if (!score.count(neighbor_id) || aggregateScore < score[neighbor_id]) {
+                from[neighbor_id] = { current_id, line };
+                score[neighbor_id] = aggregateScore;
+                nodes[neighbor_id].score = aggregateScore + nodes[neighbor_id].dist(end) * DISTANCE_SCALE;
 
-                if (queueSet.find(neighbor) == queueSet.end()) {
-                    queue.push(neighbor);
-                    queueSet.insert(neighbor);
+                if (queueSet.find(neighbor_id) == queueSet.end()) {
+                    queue.push(neighbor_id);
+                    queueSet.insert(neighbor_id);
                 }
             }
         }

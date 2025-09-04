@@ -5,18 +5,18 @@
 PathCacheWrapper NULL_WRAPPER;
 
 PathCacheWrapper::PathCacheWrapper() {
-    startNode = nullptr;
-    endNode = nullptr;
+    startNode = 0;
+    endNode = 0;
     memset(path, 0, sizeof(PathWrapper) * CITIZEN_PATH_SIZE);
     size = -1;
     lru = -1;
 }
 
-PathCacheWrapper::PathCacheWrapper(Node* st, Node* e, PathWrapper* p, int s) {
+PathCacheWrapper::PathCacheWrapper(uint16_t st, uint16_t e, PathWrapper* p, int s) {
     set(st, e, p, s, -1);
 }
 
-void PathCacheWrapper::set(Node* st, Node* e, PathWrapper* p, int s, int l) {
+void PathCacheWrapper::set(uint16_t st, uint16_t e, PathWrapper* p, int s, int l) {
     std::copy(p, p + s, path);
 
     startNode = st;
@@ -48,8 +48,8 @@ PathCache::~PathCache() {
 }
 
 // returns true if a cache entry was evicted
-bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s) {
-    int bucket = (start->numerID * PRIME_1 + end->numerID * PRIME_2) % NUM_BUCKETS;
+bool PathCache::put(uint16_t start, uint16_t end, PathWrapper* p, int s) {
+    int bucket = (start * PRIME_1 + end * PRIME_2) % NUM_BUCKETS;
     int bucketInd = bucket * BUCKET_SIZE;
     int maxLRU = -1;
     int maxInd = 0;
@@ -73,8 +73,8 @@ bool PathCache::put(Node* start, Node* end, PathWrapper* p, int s) {
     return true;
 }
 
-PathCacheWrapper& PathCache::get(Node* start, Node* end) {
-    int bucket = (start->numerID * PRIME_1 + end->numerID * PRIME_2) % NUM_BUCKETS;
+PathCacheWrapper& PathCache::get(uint16_t start, uint16_t end) {
+    int bucket = (start * PRIME_1 + end * PRIME_2) % NUM_BUCKETS;
     int bucketInd = bucket * BUCKET_SIZE;
     for (int i = 0; i < BUCKET_SIZE; i++) {
         int ind = bucketInd + i;
@@ -88,7 +88,7 @@ PathCacheWrapper& PathCache::get(Node* start, Node* end) {
         }
     }
 
-    NULL_WRAPPER.size = 0; // because somehow this mf is getting updated... that's probably an issue
+    NULL_WRAPPER.size = 0;
     return NULL_WRAPPER;
 }
 

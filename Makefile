@@ -5,7 +5,7 @@ DEBUGFLAGS = -g -O0 -DDEBUG
 LDFLAGS = -lsfml-graphics -lsfml-window -lsfml-system
 
 # Source files
-SRCS = citysim/sim.cpp citysim/node.cpp citysim/train.cpp citysim/citizen.cpp citysim/util.cpp citysim/pathcache.cpp
+SRCS = citysim/sim.cpp citysim/node.cpp citysim/util.cpp citysim/pathcache.cpp
 
 # Object files
 OBJS = $(SRCS:.cpp=.o)

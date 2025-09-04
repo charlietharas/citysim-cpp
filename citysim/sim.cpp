@@ -6,6 +6,7 @@
 #include <thread>
 #include <mutex>
 #include <time.h>
+#include <chrono>
 #include <condition_variable>
 #include <stack>
 #include <set>
@@ -13,14 +14,14 @@
 #include <random>
 #include <cstring>
 #include <cfloat>
+#include <algorithm>
 
 #include "macros.h"
 #include "line.h"
 #include "node.h"
 #include "pathcache.h"
-#include "train.h"
-#include "citizen.h"
 #include "util.h"
+#include "stores.h"
 
 // weighted-random node selection
 unsigned int totalRidership;
@@ -46,7 +47,7 @@ extern int pathFails;
 // node grid
 int NODE_GRID_ROW_SIZE;
 int NODE_GRID_COL_SIZE;
-std::vector<std::vector<std::vector<Node*>>> nodeGrid;
+std::vector<std::vector<std::vector<uint16_t>>> nodeGrid;
 
 // global arrays
 int VALID_LINES;
@@ -54,8 +55,10 @@ int VALID_NODES;
 int VALID_TRAINS;
 Line lines[MAX_LINES];
 Node nodes[MAX_NODES];
-Train trains[MAX_TRAINS];
-CitizenVector citizens(CITIIZEN_VEC_RESERVE, MAX_CITIZENS);
+TrainStore trains;
+CitizenStore citizens;
+std::vector<CitizenHandle> active_walkers;
+
 
 // multithreading managers
 std::mutex trainsMutex; // locks trains array for drawing/simulating
@@ -70,8 +73,47 @@ std::condition_variable doCustomCitizenSpawn; // pings pathfinding thread for cu
 std::condition_variable doSimulation; // pauses simulation thread
 
 // misc
-Node* nearestNode;
+uint16_t nearestNodeIndex;
 Line WALKING_LINE;
+
+bool add_citizen(uint16_t startNodeId, uint16_t endNodeId) {
+    if (citizens.timer.size() >= MAX_CITIZENS) {
+        return false;
+    }
+    
+    PathWrapper path[CITIZEN_PATH_SIZE];
+    char pathSize;
+
+    if (!nodes[startNodeId].findPath(&nodes[endNodeId], path, &pathSize)) {
+        return false;
+    }
+
+    CitizenHandle handle = citizens.create();
+    citizens.status[handle.id] = STATUS_SPAWNED;
+    citizens.currentTrain[handle.id] = {0, 0};
+    citizens.currentNode[handle.id] = path[0].node;
+    citizens.currentLine[handle.id] = path[0].line;
+    citizens.nextNode[handle.id] = path[1].node;
+    citizens.index[handle.id] = 0;
+    citizens.timer[handle.id] = 0;
+    citizens.dist[handle.id] = 0;
+    citizens.pathSize[handle.id] = pathSize;
+    for(int i=0; i<pathSize; ++i) {
+        citizens.path[i][handle.id] = path[i];
+    }
+    
+    if (citizens.currentLine[handle.id] == &WALKING_LINE) {
+        citizens.status[handle.id] = STATUS_WALK;
+        active_walkers.push_back(handle);
+    } else {
+        citizens.status[handle.id] = STATUS_TRANSFER;
+        nodes[citizens.currentNode[handle.id]].waiting_citizens.push_back(handle);
+    }
+
+
+    return true;
+}
+
 
 // spawns spawnAmount citizens at random nodes (selection weighted by ridership)
 static void generateRandomCitizens(int spawnAmount) {
@@ -103,7 +145,7 @@ static void generateRandomCitizens(int spawnAmount) {
 			}
 		} while (endNode == startNode);
 
-		if (citizens.add(&nodes[startNode], &nodes[endNode])) {
+		if (add_citizen(startNode, endNode)) {
 			handledCitizens++;
 			spawnedCount++;
 		}
@@ -112,6 +154,8 @@ static void generateRandomCitizens(int spawnAmount) {
 
 // prints a bunch of stuff to the console on ; press
 static void debugReport() {
+	/*
+	TODO FIX DEBUG REPORT
 	std::cout << "Report at tick " << simTick << ":" << std::endl;
 
 	// display problematic path steps, statuses of allocated citizens
@@ -205,6 +249,7 @@ static void debugReport() {
 	std::cout << "Citizen vector size=" << citizens.size() << " active=" << citizens.activeSize() << " inactive=" << citizens.size() - citizens.activeSize() << " cap=" << citizens.capacity() << " max=" << citizens.max() << std::endl;
 
 	std::cout << std::endl;
+	*/
 }
 
 
@@ -312,7 +357,7 @@ int init() {
 				util::colorConvert(&line.color, cell);
 			} else {
 				// add Node ref to path (before Node initialization)
-				line.path[col - 2] = &nodes[std::stoi(cell)];
+				line.path[col - 2] = std::stoi(cell);
 			}
 			col++;
 		}
@@ -399,13 +444,13 @@ int init() {
 	NODE_GRID_ROW_SIZE = WINDOW_WIDTH / NODE_GRID_ROWS;
 	NODE_GRID_COL_SIZE = WINDOW_HEIGHT / NODE_GRID_COLS;
 	for (int i = 0; i < NODE_GRID_ROWS; i++) {
-		std::vector<std::vector<Node*>> row;
+		std::vector<std::vector<uint16_t>> row;
 		for (int j = 0; j < NODE_GRID_COLS; j++) {
-			std::vector<Node*> cell;
+			std::vector<uint16_t> cell;
 			for (int k = 0; k < VALID_NODES; k++) {
 				Vector2f p = nodes[k].getPosition();
 				if (p.x >= i * NODE_GRID_ROW_SIZE && p.x < (i + 1) * NODE_GRID_ROW_SIZE && p.y >= j * NODE_GRID_COL_SIZE && p.y < (j + 1) * NODE_GRID_COL_SIZE) {
-					cell.push_back(&nodes[k]);
+					cell.push_back(k);
 					nodes[k].setGridPos(i, j);
 				}
 			}
@@ -430,12 +475,13 @@ int init() {
 		// uses the node grid to optimize calculations: may result in issues with high TRANSFER_MAX_DIST and high NODE_GRID_ROWS/COLS
 		for (int i = node.lowerGridX(); i <= node.upperGridX(); i++) {
 			for (int j = node.lowerGridY(); j <= node.upperGridY(); j++) {
-				for (Node* other : nodeGrid[i][j]) {
-					float dist = node.dist(other);
+				for (uint16_t other_idx : nodeGrid[i][j]) {
+                    Node& other = nodes[other_idx];
+					float dist = node.dist(&other);
 					if (dist < TRANSFER_MAX_DIST) {
 						dist *= DISTANCE_SCALE * TRANSFER_PENALTY_MULTIPLIER;
-						node.addNeighbor({ other, &WALKING_LINE }, dist);
-						other->addNeighbor({ &node, &WALKING_LINE }, dist);
+						node.addNeighbor({ other_idx, &WALKING_LINE }, dist);
+						other.addNeighbor({ (uint16_t)n, &WALKING_LINE }, dist);
 						transferNeighbors++;
 					}
 				}
@@ -454,17 +500,17 @@ int init() {
 
 		// add line neighbors (adjacent nodes along line)
 		// update node colors for each line
-		while (j < LINE_PATH_SIZE && line.path[j] != nullptr && line.path[j]->status == STATUS_SPAWNED) {
+		while (j < LINE_PATH_SIZE && line.path[j] != 0 && nodes[line.path[j]].status == STATUS_SPAWNED) {
 			if (j > 0) {
-				float dist = line.path[j]->dist(line.path[j - 1]) * DISTANCE_SCALE;
+				float dist = nodes[line.path[j]].dist(&nodes[line.path[j - 1]]) * DISTANCE_SCALE;
 				line.dist[j - 1] = dist;
 				struct PathWrapper one = { line.path[j], &line };
 				struct PathWrapper two = { line.path[j - 1], &line };
-				line.path[j]->addNeighbor(two, dist);
-				line.path[j - 1]->addNeighbor(one, dist);
+				nodes[line.path[j]].addNeighbor(two, dist);
+				nodes[line.path[j - 1]].addNeighbor(one, dist);
 				lineNeighbors++;
 			}
-			line.path[j]->setFillColor(line.color);
+			nodes[line.path[j]].setFillColor(line.color);
 			j++;
 		}
 
@@ -481,13 +527,15 @@ int init() {
 			// generate 2 trains (one going backward, one forward) except if at first/last stop
 			int repeat = (k == 0 || k == j - 1) ? 1 : 2;
 			for (int l = 0; l < repeat; l++) {
-				Train& train = trains[VALID_TRAINS++];
-				train.setPosition(line.path[k]->getPosition());
-				train.line = &line;
-				train.index = k;
-				train.status = STATUS_TRANSFER;
-				train.statusForward = (l == 1) ? STATUS_BACKWARD : (k == j - 1) ? STATUS_BACKWARD : STATUS_FORWARD;
-				train.setFillColor(line.color);
+                TrainHandle handle = trains.create();
+                VALID_TRAINS++;
+				trains.position[handle.id] = nodes[line.path[k]].getPosition();
+				trains.line[handle.id] = &line;
+				trains.index[handle.id] = k;
+				trains.status[handle.id] = STATUS_TRANSFER;
+				trains.statusForward[handle.id] = (l == 1) ? STATUS_BACKWARD : (k == j - 1) ? STATUS_BACKWARD : STATUS_FORWARD;
+				trains.color[handle.id] = line.color;
+                trains.radius[handle.id] = TRAIN_MIN_SIZE;
 			}
 		}
 	}
@@ -550,9 +598,9 @@ void renderingThread() {
 	lineVertices.reserve(VALID_NODES);
 	for (int i = 0; i < VALID_LINES; i++) {
 		int j = 0;
-		while (lines[i].path[j] != nullptr && lines[i].path[j]->status == STATUS_SPAWNED) {
-			sf::Vector2f position = lines[i].path[j]->getPosition();
-			sf::Color color = lines[i].path[j]->getFillColor();
+		while (j < lines[i].size) {
+			sf::Vector2f position = nodes[lines[i].path[j]].getPosition();
+			sf::Color color = nodes[lines[i].path[j]].getFillColor();
 
 			if (j != 0) lineVertices.push_back(sf::Vertex(position, color));
 			lineVertices.push_back(sf::Vertex(position, color));
@@ -569,7 +617,6 @@ void renderingThread() {
 	lineVertices.shrink_to_fit();
 
 	// initialize vertex array for nodes, trains
-	// not sure if I should be using a VertexBuffer for these
 	sf::VertexArray nodeVertices(sf::Triangles);
 	sf::VertexArray trainVertices(sf::Triangles);
 	nodeVertices.resize(VALID_NODES * NODE_N_POINTS * 3);
@@ -580,8 +627,8 @@ void renderingThread() {
 	float NODE_CAPACITY_FLOAT = float(NODE_CAPACITY);
 
 	// handlers to draw custom user paths
-	Node* userStartNode = nullptr;
-	Node* userEndNode = nullptr;
+	uint16_t userStartNode = 0;
+	uint16_t userEndNode = 0;
 	char userNodesSelected = 0;
 	PathWrapper userPath[CITIZEN_PATH_SIZE];
 	char userPathSize;
@@ -606,7 +653,7 @@ void renderingThread() {
 
 		// get nearest node (uses node grid)
 		float minDist = FLT_MAX;
-		nearestNode = &NEARBY_NODE;
+        nearestNodeIndex = -1;
 		// calculate relative mouse position (in terms of window units, scaled to zoom + pan)
 		Vector2f relMousePos = Vector2f(sf::Mouse::getPosition(window)) + view.getCenter() - Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
 		relMousePos = view.getCenter() + (relMousePos - view.getCenter()) * simZoom;
@@ -616,11 +663,12 @@ void renderingThread() {
 		int mouseYLower = my > 0 ? my - 1 : my; int mouseYUpper = my < NODE_GRID_COLS - 1 ? my + 1 : my;
 		for (int i = mouseXLower; i <= mouseXUpper; i++) {
 			for (int j = mouseYLower; j <= mouseYUpper; j++) {
-				for (Node* node : nodeGrid[i][j]) {
-					float dist = node->dist(relMousePos.x, relMousePos.y);
+				for (uint16_t node_idx : nodeGrid[i][j]) {
+                    Node& node = nodes[node_idx];
+					float dist = node.dist(relMousePos.x, relMousePos.y);
 					if (dist < minDist) {
 						minDist = dist;
-						nearestNode = node;
+						nearestNodeIndex = node_idx;
 					}
 				}
 			}
@@ -628,8 +676,7 @@ void renderingThread() {
 
 		// handle window events
 		sf::Event event;
-		while (window.pollEvent(event))
-		{
+		while (window.pollEvent(event)) {
 			// close
 			if (event.type == sf::Event::Closed) {
 				simPause = false;
@@ -661,37 +708,37 @@ void renderingThread() {
 				switch (userNodesSelected) {
 				case 0:
 					memset(userPath, 0, sizeof(PathWrapper) * CITIZEN_PATH_SIZE); // easier debugging
-					userStartNode = nearestNode;
-					if (userStartNode->getFillColor() != sf::Color::Cyan) {
-						firstColor = userStartNode->getFillColor();
+					userStartNode = nearestNodeIndex;
+					if (nodes[userStartNode].getFillColor() != sf::Color::Cyan) {
+						firstColor = nodes[userStartNode].getFillColor();
 					}
-					userStartNode->setFillColor(sf::Color::Cyan);
+					nodes[userStartNode].setFillColor(sf::Color::Cyan);
 					#if USER_INFO_MODE == true
-					std::cout << "INFO: User selected start " << userStartNode->id << std::endl;
+					std::cout << "INFO: User selected start " << nodes[userStartNode].id << std::endl;
 					#endif
 					userNodesSelected++;
 					break;
 				case 1:
-					userEndNode = nearestNode;
-					if (userStartNode != userEndNode && userStartNode->findPath(userEndNode, userPath, &userPathSize)) {
-						if (userEndNode->getFillColor() != sf::Color::Cyan) {
-							secondColor = userEndNode->getFillColor();
+					userEndNode = nearestNodeIndex;
+					if (userStartNode != userEndNode && nodes[userStartNode].findPath(&nodes[userEndNode], userPath, &userPathSize)) {
+						if (nodes[userEndNode].getFillColor() != sf::Color::Cyan) {
+							secondColor = nodes[userEndNode].getFillColor();
 						}
-						userEndNode->setFillColor(sf::Color::Cyan);
+						nodes[userEndNode].setFillColor(sf::Color::Cyan);
 						#if USER_INFO_MODE == true
-						std::cout << "INFO: User selected end " << userEndNode->id << std::endl << "Path: ";
+						std::cout << "INFO: User selected end " << nodes[userEndNode].id << std::endl << "Path: ";
 						for (int i = 0; i < userPathSize; i++) {
 							PathWrapper& p = userPath[i];
-							if (p.line == nullptr || p.node == nullptr) {
+							if (p.line == nullptr) {
 								userPathSize--; // this is super janky! oh well
 								continue;
 							}
-							std::cout << p.node->id << "," << p.line->id << "->";
+							std::cout << nodes[p.node].id << "," << p.line->id << "->";
 						}
 						std::cout << "fin" << std::endl;
 						#endif
-						for (char i = 0; i < userPathSize; i++) {
-							userPathVertices.push_back(sf::Vertex(userPath[i].node->getPosition(), userPath[i].line->color));
+						for (int i = 0; i < userPathSize; i++) {
+							userPathVertices.push_back(sf::Vertex(nodes[userPath[i].node].getPosition(), userPath[i].line->color));
 						}
 						userPathVertexBuffer.create(userPathSize);
 						userPathVertexBuffer.update(userPathVertices.data());
@@ -699,7 +746,7 @@ void renderingThread() {
 					}
 					#if USER_INFO_MODE == true
 					else {
-						std::cout << "INFO: FAILED to path to User selection " << userEndNode->id << std::endl;
+						std::cout << "INFO: FAILED to path to User selection " << nodes[userEndNode].id << std::endl;
 					}
 					#endif
 					break;
@@ -707,8 +754,8 @@ void renderingThread() {
 					#if USER_INFO_MODE == true
 					std::cout << "INFO: User cleared selection" << std::endl;
 					#endif
-					userStartNode->setFillColor(firstColor);
-					userEndNode->setFillColor(secondColor);
+					nodes[userStartNode].setFillColor(firstColor);
+					nodes[userEndNode].setFillColor(secondColor);
 					userPathSize = 0;
 					userPathVertices.clear();
 					userPathVertexBuffer.update(userPathVertices.data());
@@ -781,7 +828,7 @@ void renderingThread() {
 
 		// refresh text every TEXT_REFRESH_RATE frames
 		if (renderTick % TEXT_REFRESH_RATE == 0) {
-			size_t c = citizens.activeSize();
+			size_t c = citizens.timer.size() - citizens.free_indices.size();
 			std::string speedString;
 			if (!simPause) {
 				int s = simSpeedStat[simSpeedStat.size() - 1];
@@ -790,22 +837,32 @@ void renderingThread() {
 			else {
 				speedString = "Simulation paused (tick " + std::to_string(simTick) + ")\n";
 			}
-			text.setString(std::to_string(c) + " active citizens\n" + speedString + nearestNode->id + " [" + std::to_string(nearestNode->capacity) + "]");
+            if (nearestNodeIndex != (uint16_t)-1) {
+			    text.setString(std::to_string(c) + " active citizens\n" + speedString + nodes[nearestNodeIndex].id + " [" + std::to_string(nodes[nearestNodeIndex].capacity) + "]");
+            } else {
+                text.setString(std::to_string(c) + " active citizens\n" + speedString);
+            }
 		}
 
 		if (drawTrains) {
 			std::lock_guard<std::mutex> trainsLock(trainsMutex);
 			for (int i = 0; i < VALID_TRAINS; i++) {
-				float newRadius = TRAIN_MIN_SIZE + trains[i].capacity / TRAIN_CAPACITY_FLOAT * (TRAIN_SIZE_DIFF);
-				trains[i].updateRadius(newRadius);
-				sf::Vector2f trainPosition = trains[i].getPosition();
+				float newRadius = TRAIN_MIN_SIZE + trains.capacity[i] / TRAIN_CAPACITY_FLOAT * (TRAIN_SIZE_DIFF);
+				trains.radius[i] = newRadius;
+				sf::Vector2f trainPosition = trains.position[i];
 				sf::Vector2f trainPositionNormalized = trainPosition - sf::Vector2f(newRadius, newRadius);
-				sf::Color trainColor = trains[i].getFillColor();
+				sf::Color trainColor = trains.color[i];
+                sf::CircleShape trainShape(newRadius);
+                trainShape.setPointCount(TRAIN_N_POINTS);
+                trainShape.setOrigin(newRadius, newRadius);
+                trainShape.setPosition(trainPosition);
+                trainShape.setFillColor(trainColor);
+
 				for (int j = 0; j < TRAIN_N_POINTS; j++) {
 					int idx = i * TRAIN_N_POINTS * 3 + j * 3;
-					trainVertices[idx] = sf::Vertex(trains[i].getPoint(j) + trainPositionNormalized, trainColor);
+					trainVertices[idx] = sf::Vertex(trainShape.getPoint(j) + trainPositionNormalized, trainColor);
 					trainVertices[idx+1] = sf::Vertex(trainPosition, trainColor);
-					trainVertices[idx+2] = sf::Vertex(trains[i].getPoint((j + 1) % TRAIN_N_POINTS) + trainPositionNormalized, trainColor);
+					trainVertices[idx+2] = sf::Vertex(trainShape.getPoint((j + 1) % TRAIN_N_POINTS) + trainPositionNormalized, trainColor);
 				}
 			}
 
@@ -856,13 +913,13 @@ void pathfindingThread() {
 		if (customSpawnCitizens) {
 			int spawned = 0;
 			for (int i = 0; i < CUSTOM_CITIZEN_SPAWN_AMT; i++) {
-				Node* end = &nodes[rand() % VALID_NODES];
-				if (nearestNode != end && citizens.add(nearestNode, end)) {
+				uint16_t end = rand() % VALID_NODES;
+				if (nearestNodeIndex != end && add_citizen(nearestNodeIndex, end)) {
 					handledCitizens++;
 					spawned++;
 				}
 			}
-			std::cout << "User spawned [" << CUSTOM_CITIZEN_SPAWN_AMT << "] at " << nearestNode->id << std::endl;
+			std::cout << "User spawned [" << spawned << "] at " << nodes[nearestNodeIndex].id << std::endl;
 			customSpawnCitizens = false;
 			doCustomCitizenSpawn.notify_one();
 		}
@@ -875,7 +932,7 @@ void pathfindingThread() {
 			generateRandomCitizens(CITIZEN_SPAWN_AMT);
 			#else
 			// spawn citizens up to a target amount TARGET_CITIZEN_COUNT
-			generateRandomCitizens(TARGET_CITIZEN_COUNT - citizens.activeSize());
+			generateRandomCitizens(TARGET_CITIZEN_COUNT - (citizens.timer.size() - citizens.free_indices.size()));
 			#endif
 		}
 	}
@@ -891,13 +948,14 @@ void simulationThread() {
 	activeCitizensStat.reserve(BENCHMARK_RESERVE);
 	clockStat.reserve(BENCHMARK_RESERVE);
 	simSpeedStat.reserve(BENCHMARK_RESERVE);
-
-	CitizenThreadPool pool(NUM_CITIZEN_WORKER_THREADS);
-
-	std::cout << "Initializing " << NUM_CITIZEN_WORKER_THREADS << " threads for citizen processing" << std::endl;
 	
 	std::mutex simMutex;
 	std::unique_lock<std::mutex> simLock(simMutex);
+	// tick throttle setup
+	using steady_clock = std::chrono::steady_clock;
+	bool throttle_enabled = (MAX_TICKS_PER_SECOND > 0);
+	std::chrono::duration<double> tick_duration = throttle_enabled ? std::chrono::duration<double>(1.0 / double(MAX_TICKS_PER_SECOND)) : std::chrono::duration<double>(0);
+	auto next_tick_time = steady_clock::now();
 	while (!shouldExit) {
 		// wait if paused
 		doSimulation.wait(simLock, [] { return !simPause; } );
@@ -906,7 +964,7 @@ void simulationThread() {
 		#if BENCHMARK_MODE == true
 		// benchmark mode disables rendering and exits after fixed amount of ticks
 		if (simTick % STAT_RATE == 0) {
-			std::cout << "\rProgress: " << float(simTick) / BENCHMARK_TICK_AMT * 100 << "%" << ", " << citizens.activeSize() << " active citizens" << std::flush;
+			std::cout << "\rProgress: " << float(simTick) / BENCHMARK_TICK_AMT * 100 << "%" << ", " << citizens.timer.size() - citizens.free_indices.size() << " active citizens" << std::flush;
 		}
 		if (simTick >= BENCHMARK_TICK_AMT) {
 			std::cout << std::endl << "Benchmark concluded at tick " << simTick << std::endl;
@@ -915,61 +973,164 @@ void simulationThread() {
 		#endif
 
 		// record statistics
+		#if STAT_RATE > 0
 		if (simTick % STAT_RATE == 0) {
-			activeCitizensStat.push_back(citizens.activeSize());
+			activeCitizensStat.push_back(citizens.timer.size() - citizens.free_indices.size());
 			clockStat.push_back(double(clock()));
 			size_t clockSize = clockStat.size();
 			simSpeedStat.push_back(STAT_RATE / ((clockStat[clockSize-1] - clockStat[clockSize-2]) / CLOCKS_PER_SEC));
 		}
+		#endif
 		
 		// ping pathfinding thread to spawn citizens
+		#if CITIZEN_SPAWN_FREQ > 0
 		if (simTick % CITIZEN_SPAWN_FREQ == 0 && toggleSpawn) {
 			justDidPathfinding = false;
 			doPathfinding.notify_one();
 		}
+		#endif
 
-		// run simulation on trains and citizens
-		{
-			std::lock_guard<std::mutex> trainsLock(trainsMutex);
-			for (int i = 0; i < VALID_TRAINS; i++) {
-				trains[i].updatePositionAlongLine();
+        // update trains
+        for (uint32_t i = 0; i < trains.status.size(); ++i) {
+            trains.timer[i] += TRAIN_SPEED;
+
+            switch (trains.status[i]) {
+                case STATUS_TRANSFER: {
+                    if (trains.statusForward[i] == STATUS_FORWARD && trains.index[i] == trains.line[i]->size - 1) trains.statusForward[i] = STATUS_BACKWARD;
+                    if (trains.statusForward[i] == STATUS_BACKWARD && trains.index[i] == 0) trains.statusForward[i] = STATUS_FORWARD;
+
+                    int increment = (trains.statusForward[i] == STATUS_FORWARD) ? 1 : -1;
+                    trains.nextIndex[i] = trains.index[i] + increment;
+
+                    if (trains.statusForward[i] == STATUS_FORWARD) {
+                        trains.dist[i] = trains.line[i]->dist[trains.index[i]];
+                    } else {
+                        trains.dist[i] = trains.line[i]->dist[trains.nextIndex[i]];
+                    }
+                    
+                    trains.status[i] = STATUS_IN_TRANSIT;
+                    break;
+                }
+                case STATUS_IN_TRANSIT: {
+                    uint16_t startNodeIdx = trains.line[i]->path[trains.index[i]];
+                    uint16_t endNodeIdx = trains.line[i]->path[trains.nextIndex[i]];
+                    
+                    float t = trains.timer[i] / trains.dist[i];
+                    t = std::max(0.0f, std::min(t, 1.0f));
+		            trains.position[i] = nodes[startNodeIdx].getPosition() * (1.0f - t) + (nodes[endNodeIdx].getPosition() * t);
+
+                    if (trains.timer[i] > trains.dist[i]) {
+                        if (nodes[endNodeIdx].addTrain({i, trains.generation[i]})) {
+                            trains.position[i] = nodes[endNodeIdx].getPosition();
+                            trains.index[i] = trains.nextIndex[i];
+                            trains.timer[i] = 0;
+                            trains.status[i] = STATUS_AT_STOP;
+
+                            // Deboarding
+                            auto& passengers = trains.passengers[i];
+                            passengers.erase(std::remove_if(passengers.begin(), passengers.end(), 
+                                [&](CitizenHandle cit_handle) {
+                                    if (citizens.nextNode[cit_handle.id] == endNodeIdx) {
+                                        citizens.index[cit_handle.id]++;
+                                        uint8_t path_idx = citizens.index[cit_handle.id];
+                                        citizens.currentNode[cit_handle.id] = citizens.path[path_idx][cit_handle.id].node;
+                                        citizens.currentLine[cit_handle.id] = citizens.path[path_idx][cit_handle.id].line;
+                                        
+                                        if (path_idx + 1 >= citizens.pathSize[cit_handle.id]) {
+                                            citizens.destroy(cit_handle);
+                                        } else {
+                                            citizens.nextNode[cit_handle.id] = citizens.path[path_idx+1][cit_handle.id].node;
+                                            if (citizens.currentLine[cit_handle.id] == &WALKING_LINE) {
+                                                citizens.status[cit_handle.id] = STATUS_WALK;
+                                                active_walkers.push_back(cit_handle);
+                                            } else {
+                                                citizens.status[cit_handle.id] = STATUS_TRANSFER;
+                                                nodes[endNodeIdx].waiting_citizens.push_back(cit_handle);
+                                            }
+                                        }
+                                        return true; // remove from passengers
+                                    }
+                                    return false;
+                            }), passengers.end());
+                            
+                            // Boarding
+                            auto& waiting = nodes[endNodeIdx].waiting_citizens;
+                            waiting.erase(std::remove_if(waiting.begin(), waiting.end(),
+                                [&](CitizenHandle cit_handle) {
+                                    if (trains.capacity[i] < TRAIN_CAPACITY && citizens.currentLine[cit_handle.id] == trains.line[i]) {
+                                        // TODO: check direction
+                                        citizens.status[cit_handle.id] = STATUS_IN_TRANSIT;
+                                        citizens.currentTrain[cit_handle.id] = {i, trains.generation[i]};
+                                        trains.passengers[i].push_back(cit_handle);
+                                        trains.capacity[i]++;
+                                        return true; // remove from waiting
+                                    }
+                                    return false;
+                                }
+                            ), waiting.end());
+                        }
+                    }
+                    break;
+                }
+                case STATUS_AT_STOP: {
+                    if (trains.timer[i] > TRAIN_STOP_THRESH) {
+                        uint16_t stop_idx = trains.line[i]->path[trains.index[i]];
+                        if (nodes[stop_idx].removeTrain({i, trains.generation[i]})) {
+                            trains.timer[i] = 0;
+                            trains.status[i] = STATUS_TRANSFER;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // update walking citizens
+        active_walkers.erase(std::remove_if(active_walkers.begin(), active_walkers.end(),
+            [&](CitizenHandle handle) {
+                citizens.timer[handle.id] += CITIZEN_SPEED;
+                if (citizens.dist[handle.id] == 0) { // first time
+                    citizens.dist[handle.id] = nodes[citizens.currentNode[handle.id]].dist(&nodes[citizens.nextNode[handle.id]]);
+                }
+
+                if (citizens.timer[handle.id] > citizens.dist[handle.id]) {
+                    citizens.index[handle.id]++;
+                    uint8_t path_idx = citizens.index[handle.id];
+                    
+                    if (path_idx >= citizens.pathSize[handle.id] || path_idx >= CITIZEN_PATH_SIZE) {
+                        citizens.destroy(handle);
+                    } else {
+                        citizens.currentNode[handle.id] = citizens.path[path_idx][handle.id].node;
+                        citizens.currentLine[handle.id] = citizens.path[path_idx][handle.id].line;
+                        
+                        if (path_idx + 1 >= citizens.pathSize[handle.id]) {
+                            citizens.destroy(handle);
+                        } else {
+                            citizens.nextNode[handle.id] = citizens.path[path_idx+1][handle.id].node;
+                            if (citizens.currentLine[handle.id] == &WALKING_LINE) {
+                                citizens.timer[handle.id] = 0;
+                                citizens.dist[handle.id] = 0;
+                                // remain in walking state
+                            } else {
+                                citizens.status[handle.id] = STATUS_TRANSFER;
+                                nodes[citizens.currentNode[handle.id]].waiting_citizens.push_back(handle);
+                                return true; // remove from active_walkers
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+        ), active_walkers.end());
+		// throttle tick rate
+		if (throttle_enabled) {
+			next_tick_time += std::chrono::duration_cast<steady_clock::duration>(tick_duration);
+			auto now = steady_clock::now();
+			if (next_tick_time > now) {
+				std::this_thread::sleep_until(next_tick_time);
+			} else {
+				next_tick_time = now;
 			}
-		}
-
-		{
-			size_t chunkSize = citizens.activeSize() / NUM_CITIZEN_WORKER_THREADS + 1;
-			for (int i = 0; i < NUM_CITIZEN_WORKER_THREADS; i++) {
-				pool.enqueue([i, chunkSize]() {
-					std::vector<int> toDelete;
-					size_t start = i * chunkSize;
-					size_t end = std::min(start + chunkSize, citizens.activeSize());
-					#if CITIZEN_CULL_FREQ != 0
-					bool doCull = simTick % CITIZEN_CULL_FREQ == 0;
-					#endif
-					for (size_t ind = start; ind < end; ind++) {
-						Citizen& cit = citizens[ind];
-						if (!cit.status == STATUS_DESPAWNED) {
-							if (cit.updatePositionAlongPath()) {
-								toDelete.push_back(ind);
-							}
-							#if CITIZEN_CULL_FREQ != 0
-							else if (doCull && cit.cull()) {
-								std::cout << "Scheduled deletion for timed out citizen" << std::endl; // this never prints, but for some reason, it needs to be here. lol
-								toDelete.push_back(ind);
-							}
-							#endif
-						}
-					}
-					{
-						std::lock_guard<std::mutex> citizenLock(blockStack);
-						for (int& i : toDelete) {
-							citizens.remove(i);
-						}
-					}
-				});
-			}
-
-			pool.waitForCompletion();
 		}
 	}
 

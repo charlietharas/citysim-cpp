@@ -9,12 +9,12 @@
 #include "macros.h"
 #include "drawable.h"
 #include "line.h"
+#include "handles.h"
 
-class Train;
 class PathCacheWrapper;
 
 struct PathWrapper {
-    Node* node;
+    uint16_t node;
     Line* line;
 };
 
@@ -33,12 +33,13 @@ public:
     char numLines;
     PathWrapper neighbors[NODE_N_NEIGHBORS];
     float weights[NODE_N_NEIGHBORS];
-    Train* trains[NODE_N_TRAINS];
+    TrainHandle trains[NODE_N_TRAINS];
+    std::vector<CitizenHandle> waiting_citizens;
 
     Node();
 
-    bool addTrain(Train* train);
-    bool removeTrain(Train* train);
+    bool addTrain(TrainHandle train);
+    bool removeTrain(TrainHandle train);
     bool addNeighbor(const PathWrapper& neighbor, float weight);
     bool removeNeighbor(const PathWrapper& neighbor);
 

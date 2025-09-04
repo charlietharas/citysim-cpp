@@ -28,30 +28,16 @@
 #define TEXT_REFRESH_RATE			10 // every n frames
 #define BACKGROUND_COLOR			sf::Color::White
 
+// Simulation timing
+#define MAX_TICKS_PER_SECOND		240 // 0 to disable throttling
+
 // Simulation size
 #define MAX_LINES					32
 #define MAX_NODES					512
 #define MAX_TRAINS					1024
 #define MAX_CITIZENS				200000
-#define NUM_CITIZEN_WORKER_THREADS	8 // important to adjust for performance depending on your machine
+#define NUM_CITIZEN_WORKER_THREADS	6 // important to adjust for performance depending on your machine
 #define DISTANCE_SCALE				128
-
-// File loading
-#define STATIONS_CSV_NUM_COLUMNS	6
-#define GEOM_CSV_NUM_COLUMNS		9
-
-// Node and Train status flags
-#define STATUS_DESPAWNED			0
-#define STATUS_SPAWNED				1
-#define STATUS_IN_TRANSIT			2
-#define STATUS_AT_STOP				3
-#define STATUS_TRANSFER				4
-#define STATUS_WALK					5
-#define STATUS_BOARDED				6
-#define STATUS_FORWARD				1
-#define STATUS_BACKWARD				-1
-#define STATUS_AMBIVALENT			3
-#define STATUS_HIGHLIGHTED			2
 
 // Line
 #define LINE_PATH_SIZE				64
@@ -73,11 +59,11 @@
 // Citizen
 constexpr float CITIZEN_SPEED = 1.0f;
 #define	CITIZEN_TRANSFER_THRESH		64 * CITIZEN_SPEED // how long citizens walk through stations before waiting for a train
-#define CITIZEN_SPAWN_INIT			4000 // initial amount of citizens to spawn before simulation start
-#define CITIZEN_SPAWN_FREQ			1024 // spawn citizens every n simulation ticks
-#define CITIZEN_CULL_FREQ			4096 // cull citizens who have been stuck longer than CITIZEN_DESPAWN_THRESH every n simulation ticks
-#define CITIZEN_SPAWN_METHOD		0 // 0 to match target amount, 1 for fixed amount (CITIZEN_SPAWN_AMT)
-#define CITIZEN_SPAWN_AMT			2000
+#define CITIZEN_SPAWN_INIT			8000 // initial amount of citizens to spawn before simulation start
+#define CITIZEN_SPAWN_FREQ			0 // spawn citizens every n simulation ticks
+#define CITIZEN_CULL_FREQ			0 // cull citizens who have been stuck longer than CITIZEN_DESPAWN_THRESH every n simulation ticks
+#define CITIZEN_SPAWN_METHOD		1 // 0 to match target amount, 1 for fixed amount (CITIZEN_SPAWN_AMT)
+#define CITIZEN_SPAWN_AMT			100
 #define TARGET_CITIZEN_COUNT		40000
 #define CITIIZEN_VEC_RESERVE		TARGET_CITIZEN_COUNT * 2
 #define CUSTOM_CITIZEN_SPAWN_AMT	250
@@ -100,8 +86,6 @@ constexpr int CACHE_TRANSFERS_THRESHOLD = 2; // paths with n or different lines 
 #define PRIME_2 1223
 
 // Debugging
-#define AOK							0
-#define ERROR_OPENING_FILE			1
 #define BENCHMARK_MODE				false
 #define BENCHMARK_TICK_AMT			50000
 #define STAT_RATE					1000 // every n simulation ticks
@@ -114,3 +98,22 @@ constexpr int CACHE_TRANSFERS_THRESHOLD = 2; // paths with n or different lines 
 #define NODE_CAPACITY_WARN			512
 #define CITIZEN_DESPAWN_WARN		500000 * CITIZEN_SPEED
 #define CITIZEN_STUCK_THRESH		10 // ignore nodes with below n stuck citizens when outputting debug info
+
+// File loading
+#define STATIONS_CSV_NUM_COLUMNS	6
+#define GEOM_CSV_NUM_COLUMNS		9
+#define AOK							0
+#define ERROR_OPENING_FILE			1
+
+// Node and Train status flags
+#define STATUS_DESPAWNED			0
+#define STATUS_SPAWNED				1
+#define STATUS_IN_TRANSIT			2
+#define STATUS_AT_STOP				3
+#define STATUS_TRANSFER				4
+#define STATUS_WALK					5
+#define STATUS_BOARDED				6
+#define STATUS_FORWARD				1
+#define STATUS_BACKWARD				-1
+#define STATUS_AMBIVALENT			3
+#define STATUS_HIGHLIGHTED			2
