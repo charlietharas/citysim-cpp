@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Icitysim -pthread
+CXXFLAGS = -std=c++17 -Wall -Wextra -Wno-char-subscripts -Icitysim -pthread
 DEBUGFLAGS = -g -O0 -DDEBUG
 LDFLAGS = -lsfml-graphics -lsfml-window -lsfml-system
 
