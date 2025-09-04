@@ -68,7 +68,6 @@ struct TrainStore {
     std::vector<Line*> line;
     std::vector<sf::Vector2f> position;
     std::vector<sf::Color> color;
-    std::vector<float> radius;
 
     std::vector<std::vector<CitizenHandle>> passengers;
 
@@ -87,7 +86,6 @@ struct TrainStore {
         line.emplace_back();
         position.emplace_back();
         color.emplace_back();
-        radius.emplace_back();
         passengers.emplace_back();
         generation.emplace_back(1);
         return { id, generation[id] };

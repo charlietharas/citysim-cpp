@@ -5,6 +5,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 #include <time.h>
 #include <chrono>
 #include <condition_variable>
@@ -61,13 +62,13 @@ std::vector<CitizenHandle> active_walkers;
 
 
 // multithreading managers
-std::mutex trainsMutex; // locks trains array for drawing/simulating
+std::shared_mutex trainsMutex; // locks trains array for drawing/simulating
 std::mutex pathsMutex; // pause helper
 std::mutex customCitizenSpawnMutex; // pause helper
 extern std::mutex blockStack; // see citizen.cpp
 std::atomic<bool> customSpawnCitizens(false); // pause helper
-std::atomic<bool> justDidPathfinding(false); // pause helper
 std::atomic<bool> shouldExit(false); // global thread control
+std::atomic<int> citizensToSpawn(0); // producer-consumer counter
 std::condition_variable doPathfinding; // pauses pathfinding thread
 std::condition_variable doCustomCitizenSpawn; // pings pathfinding thread for custom citizen spawning
 std::condition_variable doSimulation; // pauses simulation thread
@@ -116,8 +117,8 @@ bool add_citizen(uint16_t startNodeId, uint16_t endNodeId) {
 
 
 // spawns spawnAmount citizens at random nodes (selection weighted by ridership)
-static void generateRandomCitizens(int spawnAmount) {
-	if (spawnAmount <= 0) return;
+static int generateRandomCitizens(int spawnAmount) {
+	if (spawnAmount <= 0) return 0;
 
 	int spawnedCount = 0;
 
@@ -150,6 +151,8 @@ static void generateRandomCitizens(int spawnAmount) {
 			spawnedCount++;
 		}
 	}
+
+	return spawnedCount;
 }
 
 // prints a bunch of stuff to the console on ; press
@@ -535,7 +538,6 @@ int init() {
 				trains.status[handle.id] = STATUS_TRANSFER;
 				trains.statusForward[handle.id] = (l == 1) ? STATUS_BACKWARD : (k == j - 1) ? STATUS_BACKWARD : STATUS_FORWARD;
 				trains.color[handle.id] = line.color;
-                trains.radius[handle.id] = TRAIN_MIN_SIZE;
 			}
 		}
 	}
@@ -680,8 +682,9 @@ void renderingThread() {
 			// close
 			if (event.type == sf::Event::Closed) {
 				simPause = false;
-				doSimulation.notify_all();
 				shouldExit = true;
+				doSimulation.notify_all();
+				doPathfinding.notify_all();
 				window.close();
 			}
 			// zoom
@@ -845,10 +848,9 @@ void renderingThread() {
 		}
 
 		if (drawTrains) {
-			std::lock_guard<std::mutex> trainsLock(trainsMutex);
+			std::shared_lock<std::shared_mutex> trainsLock(trainsMutex);
 			for (int i = 0; i < VALID_TRAINS; i++) {
 				float newRadius = TRAIN_MIN_SIZE + trains.capacity[i] / TRAIN_CAPACITY_FLOAT * (TRAIN_SIZE_DIFF);
-				trains.radius[i] = newRadius;
 				sf::Vector2f trainPosition = trains.position[i];
 				sf::Vector2f trainPositionNormalized = trainPosition - sf::Vector2f(newRadius, newRadius);
 				sf::Color trainColor = trains.color[i];
@@ -906,7 +908,7 @@ void renderingThread() {
 void pathfindingThread() {
 	std::unique_lock<std::mutex> pathsLock(pathsMutex);
 	while (!shouldExit) {
-		doPathfinding.wait(pathsLock, [] {return !justDidPathfinding || customSpawnCitizens || shouldExit; });
+		doPathfinding.wait(pathsLock, [] {return (citizensToSpawn.load() > 0) || customSpawnCitizens || shouldExit; });
 		if (shouldExit) break;
 
 		// spawn citizens at user request
@@ -923,17 +925,10 @@ void pathfindingThread() {
 			customSpawnCitizens = false;
 			doCustomCitizenSpawn.notify_one();
 		}
-		// spawn citizens using weighted-random node selection if spawning is enabled
-		else if (toggleSpawn) {
-			justDidPathfinding = true;
-
-			#if CITIZEN_SPAWN_METHOD == 1
-			// spawn a constant amount of citizens CITIZEN_SPAWN_AMT
-			generateRandomCitizens(CITIZEN_SPAWN_AMT);
-			#else
-			// spawn citizens up to a target amount TARGET_CITIZEN_COUNT
-			generateRandomCitizens(TARGET_CITIZEN_COUNT - (citizens.timer.size() - citizens.free_indices.size()));
-			#endif
+		// spawn citizens requested by simulation thread
+		else if (citizensToSpawn.load() > 0) {
+			int toSpawn = citizensToSpawn.exchange(0);
+			generateRandomCitizens(toSpawn);
 		}
 	}
 
@@ -957,8 +952,9 @@ void simulationThread() {
 	std::chrono::duration<double> tick_duration = throttle_enabled ? std::chrono::duration<double>(1.0 / double(MAX_TICKS_PER_SECOND)) : std::chrono::duration<double>(0);
 	auto next_tick_time = steady_clock::now();
 	while (!shouldExit) {
-		// wait if paused
-		doSimulation.wait(simLock, [] { return !simPause; } );
+		// wait if paused or until shutdown
+		doSimulation.wait(simLock, [] { return shouldExit || !simPause; } );
+		if (shouldExit) break;
 		simTick++;
 
 		#if BENCHMARK_MODE == true
@@ -985,13 +981,20 @@ void simulationThread() {
 		// ping pathfinding thread to spawn citizens
 		#if CITIZEN_SPAWN_FREQ > 0
 		if (simTick % CITIZEN_SPAWN_FREQ == 0 && toggleSpawn) {
-			justDidPathfinding = false;
+			#if CITIZEN_SPAWN_METHOD == 1
+			citizensToSpawn.fetch_add(CITIZEN_SPAWN_AMT);
+			#else
+			int needed = TARGET_CITIZEN_COUNT - int(citizens.timer.size() - citizens.free_indices.size());
+			if (needed > 0) citizensToSpawn.fetch_add(needed);
+			#endif
 			doPathfinding.notify_one();
 		}
 		#endif
 
         // update trains
-        for (uint32_t i = 0; i < trains.status.size(); ++i) {
+        {
+            std::unique_lock<std::shared_mutex> trainsLock(trainsMutex);
+            for (uint32_t i = 0; i < trains.status.size(); ++i) {
             trains.timer[i] += TRAIN_SPEED;
 
             switch (trains.status[i]) {
@@ -1057,8 +1060,8 @@ void simulationThread() {
                             auto& waiting = nodes[endNodeIdx].waiting_citizens;
                             waiting.erase(std::remove_if(waiting.begin(), waiting.end(),
                                 [&](CitizenHandle cit_handle) {
-                                    if (trains.capacity[i] < TRAIN_CAPACITY && citizens.currentLine[cit_handle.id] == trains.line[i]) {
-                                        // TODO: check direction
+                                    if (trains.capacity[i] < TRAIN_CAPACITY && citizens.currentLine[cit_handle.id] == trains.line[i] && 
+										citizens.nextNode[cit_handle.id] == trains.line[i]->path[trains.nextIndex[i]]) {
                                         citizens.status[cit_handle.id] = STATUS_IN_TRANSIT;
                                         citizens.currentTrain[cit_handle.id] = {i, trains.generation[i]};
                                         trains.passengers[i].push_back(cit_handle);
@@ -1084,44 +1087,46 @@ void simulationThread() {
                 }
             }
         }
+	}
 
-        // update walking citizens
-        active_walkers.erase(std::remove_if(active_walkers.begin(), active_walkers.end(),
-            [&](CitizenHandle handle) {
-                citizens.timer[handle.id] += CITIZEN_SPEED;
-                if (citizens.dist[handle.id] == 0) { // first time
-                    citizens.dist[handle.id] = nodes[citizens.currentNode[handle.id]].dist(&nodes[citizens.nextNode[handle.id]]);
-                }
+		// update walking citizens
+		active_walkers.erase(std::remove_if(active_walkers.begin(), active_walkers.end(),
+			[&](CitizenHandle handle) {
+				citizens.timer[handle.id] += CITIZEN_SPEED;
+				if (citizens.dist[handle.id] == 0) { // first time
+					citizens.dist[handle.id] = nodes[citizens.currentNode[handle.id]].dist(&nodes[citizens.nextNode[handle.id]]);
+				}
 
-                if (citizens.timer[handle.id] > citizens.dist[handle.id]) {
-                    citizens.index[handle.id]++;
-                    uint8_t path_idx = citizens.index[handle.id];
-                    
-                    if (path_idx >= citizens.pathSize[handle.id] || path_idx >= CITIZEN_PATH_SIZE) {
-                        citizens.destroy(handle);
-                    } else {
-                        citizens.currentNode[handle.id] = citizens.path[path_idx][handle.id].node;
-                        citizens.currentLine[handle.id] = citizens.path[path_idx][handle.id].line;
-                        
-                        if (path_idx + 1 >= citizens.pathSize[handle.id]) {
-                            citizens.destroy(handle);
-                        } else {
-                            citizens.nextNode[handle.id] = citizens.path[path_idx+1][handle.id].node;
-                            if (citizens.currentLine[handle.id] == &WALKING_LINE) {
-                                citizens.timer[handle.id] = 0;
-                                citizens.dist[handle.id] = 0;
-                                // remain in walking state
-                            } else {
-                                citizens.status[handle.id] = STATUS_TRANSFER;
-                                nodes[citizens.currentNode[handle.id]].waiting_citizens.push_back(handle);
-                                return true; // remove from active_walkers
-                            }
-                        }
-                    }
-                }
-                return false;
-            }
-        ), active_walkers.end());
+				if (citizens.timer[handle.id] > citizens.dist[handle.id]) {
+					citizens.index[handle.id]++;
+					uint8_t path_idx = citizens.index[handle.id];
+					
+					if (path_idx >= citizens.pathSize[handle.id] || path_idx >= CITIZEN_PATH_SIZE) {
+						citizens.destroy(handle);
+					} else {
+						citizens.currentNode[handle.id] = citizens.path[path_idx][handle.id].node;
+						citizens.currentLine[handle.id] = citizens.path[path_idx][handle.id].line;
+						
+						if (path_idx + 1 >= citizens.pathSize[handle.id]) {
+							citizens.destroy(handle);
+						} else {
+							citizens.nextNode[handle.id] = citizens.path[path_idx+1][handle.id].node;
+							if (citizens.currentLine[handle.id] == &WALKING_LINE) {
+								citizens.timer[handle.id] = 0;
+								citizens.dist[handle.id] = 0;
+								// remain in walking state
+							} else {
+								citizens.status[handle.id] = STATUS_TRANSFER;
+								nodes[citizens.currentNode[handle.id]].waiting_citizens.push_back(handle);
+								return true; // remove from active_walkers
+							}
+						}
+					}
+				}
+				return false;
+			}
+		), active_walkers.end());
+	
 		// throttle tick rate
 		if (throttle_enabled) {
 			next_tick_time += std::chrono::duration_cast<steady_clock::duration>(tick_duration);
