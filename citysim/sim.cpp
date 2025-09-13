@@ -789,7 +789,9 @@ void renderingThread() {
 
 		// refresh text every TEXT_REFRESH_RATE frames
 		if (renderTick % TEXT_REFRESH_RATE == 0) {
-			size_t c = citizens.timer.size() - citizens.free_indices.size();
+			size_t timerSize = citizens.timer.size();
+			size_t freeIndicesSize = citizens.free_indices.size();
+			size_t c = (timerSize > freeIndicesSize) ? (timerSize - freeIndicesSize) : 0;
 			std::string speedString;
 			if (!simPause) {
 				int s = simSpeedStat[simSpeedStat.size() - 1];
@@ -797,9 +799,11 @@ void renderingThread() {
 			} else {
 				speedString = "Simulation paused (tick " + std::to_string(simTick) + ")\n";
 			}
+			std::cout << timerSize << " " << freeIndicesSize << " " << c << std::endl;
+			// TODO THIS IS A PROBLEM (NEED TO MAINTAIN ACCURATE COUNT OF ACTIVE CITIZENS SOMEHOW; PROBABLY SHOULD ALSO BE ATOMIC)
 			if (nearestNodeIndex != (uint16_t)-1) {
 				text.setString(std::to_string(c) + " active citizens\n" + speedString + nodes[nearestNodeIndex].id +
-				    " [" + std::to_string(nodes[nearestNodeIndex].capacity) + "]");
+				    " [" + std::to_string(nodes[nearestNodeIndex].waiting_citizens.size()) + "]");
 			} else {
 				text.setString(std::to_string(c) + " active citizens\n" + speedString);
 			}
@@ -1011,7 +1015,7 @@ void simulationThread() {
 									        citizens.currentLine[cit_id] = citizens.path[path_idx][cit_id].line;
 
 									        if (path_idx + 1 >= citizens.pathSize[cit_id]) {
-										        //  citizens.destroy(cit_handle);
+										        citizens.destroy(cit_handle);
 									        } else {
 										        citizens.nextNode[cit_id] = citizens.path[path_idx + 1][cit_id].node;
 										        if (citizens.currentLine[cit_id] == &WALKING_LINE) {
@@ -1037,11 +1041,14 @@ void simulationThread() {
 								        auto cit_id = cit_handle.id;
 								        if (trains.capacity[i] < TRAIN_CAPACITY &&
 								            citizens.currentLine[cit_id] == trains.line[i] &&
-								            citizens.nextNode[cit_id] == trains.line[i]->path[trains.nextIndex[i]]) {
+								            citizens.currentNode[cit_id] == trains.line[i]->path[trains.nextIndex[i]])
+								        // TODO PROBLEM HERE?
+								        {
 									        citizens.status[cit_id] = STATUS_IN_TRANSIT;
 									        citizens.currentTrain[cit_id] = {i, trains.generation[i]};
 									        trains.passengers[i].push_back(cit_handle);
 									        trains.capacity[i]++;
+											std::cout << "Boarding citizen " << cit_id << " on train " << i << std::endl;
 									        return true; // remove from waiting
 								        }
 								        return false;
@@ -1082,13 +1089,16 @@ void simulationThread() {
 				        uint8_t path_idx = citizens.index[cit_id];
 
 				        if (path_idx >= citizens.pathSize[cit_id] || path_idx >= CITIZEN_PATH_SIZE) {
-					        // citizens.destroy(handle);
+					        // TODO THIS IS PROBLEMATIC
+					        // std::cout << int(path_idx) << " " << int(citizens.pathSize[cit_id]) << " " << int(CITIZEN_PATH_SIZE) << std::endl;
+					        citizens.destroy(handle);
 				        } else {
 					        citizens.currentNode[cit_id] = citizens.path[path_idx][cit_id].node;
 					        citizens.currentLine[cit_id] = citizens.path[path_idx][cit_id].line;
 
 					        if (path_idx + 1 >= citizens.pathSize[cit_id]) {
-						        // citizens.destroy(handle); // is this not redundant?
+						        citizens.destroy(handle); // is this not redundant?
+						        std::cout << int(path_idx) << " " << int(citizens.pathSize[cit_id]) << std::endl;
 					        } else {
 						        citizens.nextNode[cit_id] = citizens.path[path_idx + 1][cit_id].node;
 						        if (citizens.currentLine[cit_id] == &WALKING_LINE) {

@@ -53,7 +53,7 @@ bool PathCache::put(uint16_t start, uint16_t end, PathWrapper* p, int s) {
 	int bucketInd = bucket * BUCKET_SIZE;
 	int maxLRU = -1;
 	int maxInd = 0;
-	for (int i = 0; i < BUCKET_SIZE; i++) {
+	for (size_t i = 0; i < BUCKET_SIZE; i++) {
 		int ind = bucketInd + i;
 		cache[ind].lru++;
 		int lru = cache[ind].lru;
@@ -76,12 +76,12 @@ bool PathCache::put(uint16_t start, uint16_t end, PathWrapper* p, int s) {
 PathCacheWrapper& PathCache::get(uint16_t start, uint16_t end) {
 	int bucket = (start * PRIME_1 + end * PRIME_2) % NUM_BUCKETS;
 	int bucketInd = bucket * BUCKET_SIZE;
-	for (int i = 0; i < BUCKET_SIZE; i++) {
+	for (size_t i = 0; i < BUCKET_SIZE; i++) {
 		int ind = bucketInd + i;
 		cache[ind].lru++;
 		if (cache[ind].startNode == start && cache[ind].endNode == end) {
 			cache[ind].lru = 0;
-			for (int j = i + 1; j < BUCKET_SIZE; j++) {
+			for (size_t j = i + 1; j < BUCKET_SIZE; j++) {
 				cache[bucketInd + j].lru++;
 			}
 			return cache[ind];
