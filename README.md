@@ -10,38 +10,24 @@ https://github.com/CityOfNewYork/nyc-geo-metadata
 [Station ridership data](https://new.mta.info/agency/new-york-city-transit/subway-bus-ridership-2021)
 
 ### Future improvements
-
-#### SORTED
 - citizen update loop and data structure optimization
+	- simulation currently broken
+	- fix shitty pointer architecture
+- refactor to SDL2
+- fix patch caching
+- fix debug report
+- visual analytics/ridership dashboard
 - path contraction for pathfinding algorithm
-- path generation post-contraction
-- use different multithreading library? (omp or pthreads as opposed to clunky native C threads)
+- memory optimization for stored path
+- review parallelism structure
 - train physics (including geoline objects and collision avoidance)
+- multi pathfinding (e.g. multiple starts, multiple destinations, shortest overall path)
 - dynamic train schedules
-- dynamic train paths
-- fix benchmark mode implementation
+- dynamic train paths (e.g. nightly schedule)
+- fix benchmark mode
 
-#### ORIG
-Possible short term performance improvements:
-- pathfinding
-	- path contraction to POIs/line nodes--add nodes along the same line as node neighbors, or add major transfer points (this has previously reduced performance)
-	- multithreading/hardware utilization (likely not necessary)
-- citizen update loop
-	- delay updates/checks on citizens that aren't expected to get to their destination for a while (some sort of priority queue/other data structure)
-	- path contraction post-generation (this has previously created issues and failed to improve performance, but does reduce memory usage significantly)
-	- explore options for vectorization/individual update optimization (likely not helpful)
-
-Possibilities for extension:
-- rush hour (!)
-- custom and accurate train counts, speeds (from https://new.mta.info/schedules, The Weekender)
-- tweaks to pathfinding algorithm for better realism
-	- dynamically update weights for algorithm using train ETAs (incorporate headways)
-		- use D*?
-	- adjust algorithm hyperparameters (and add variance to individual agent heuristics) for realistic choice-making
-- drawing "complex lines" instead of straight lines between stations (I already have the data)
-	- making trains follow those lines
-	- giving trains basic physics (accel, decel, turning)
-		- or at least precompute this for realistic headways
-- randomized delays and train backups/queues
-- schedule switching (weekend/late-night/etc.)
-- incorporate other transit modes (e.g. bus)
+More datasets to use:
+- https://data.ny.gov/browse?Dataset-Information_Agency=Metropolitan+Transportation+Authority&sortBy=relevance&page=1&pageSize=20
+- https://data.ny.gov/browse?tags=origin-destination
+- https://www.mta.info/article/celebrating-2024-mta-open-data-challenge
+- https://www.mta.info/open-data
